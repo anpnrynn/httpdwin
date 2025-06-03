@@ -6,6 +6,8 @@ ThreadQueue * ThreadPool::threadQueue;
 
 ThreadPool::ThreadPool(int n ){
     nThreads = n;
+    threadmutexes = new mutex[n];
+    threadQueue   = new ThreadQueue[n];
     threadId = 0;
     int i    = 0;
     threads  = new Threads();
@@ -14,10 +16,10 @@ ThreadPool::ThreadPool(int n ){
         threads->push_back(t);
         i++;
     }
-    threadmutexes = new mutex[n];
-    threadQueue   = new ThreadQueue[n];
 }
 
+ThreadPool::~ThreadPool(){
+}
 
 void ThreadPool::assignTask(ThreadCommand *cmd){
     int leastBusy = 10000;

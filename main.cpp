@@ -6,14 +6,17 @@
 #include <ws2tcpip.h>
 #include <stdio.h>
 #include <malloc.h>
-#include <version.h>
+
 #include <thread>
 #include <chrono>
-#include <httpdlog.h>
+
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
+#include <version.h>
+#include <httpdlog.h>
+#include <threadpool.h>
 
 using namespace std;
 
@@ -228,6 +231,48 @@ int main()
         return ( 1002 );
     } else {
         httpdlog (  "INFO", "Private key file loaded C:\\Certs\\httpdwinkey.pem" );
+    }
+
+    WSAPOLLFD    *pollfds = new WSAPOLLFD[5];
+    pollfds[0].fd = srv;
+    pollfds[0].events = POLLIN | POLLERR | POLLHUP | POLLNVAL;
+    pollfds[0].revents = 0;
+
+    pollfds[1].fd = srv6;
+    pollfds[1].events = POLLIN | POLLERR | POLLHUP | POLLNVAL;
+    pollfds[1].revents = 0;
+
+    pollfds[2].fd = sslsrv;
+    pollfds[2].events = POLLIN | POLLERR | POLLHUP | POLLNVAL;
+    pollfds[2].revents = 0;
+
+    pollfds[3].fd = sslsrv6;
+    pollfds[3].events = POLLIN | POLLERR | POLLHUP | POLLNVAL;
+    pollfds[3].revents = 0;
+
+    int nPorts   = 4;
+    int nThreads = 40;
+
+    ThreadPool *tp = new ThreadPool(nThreads);
+
+    while ( true ) {
+        fflush ( stderr );
+
+        int i = 0;
+        while( i < nPorts ){
+            pollfds[i].events = POLLIN;
+            i++;
+        }
+
+        int rc = 0;
+
+        if ( ( rc = WSAPoll ( pollfds, nPorts, 1 ) ) != SOCKET_ERROR ) {
+            httpdlog (  " ", "Looping in poll" );
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        } else {
+            httpdlog (  " ", "Looping in poll error" );
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
     }
 
     return 0;
