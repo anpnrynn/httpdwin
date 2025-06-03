@@ -267,10 +267,37 @@ int main()
         int rc = 0;
 
         if ( ( rc = WSAPoll ( pollfds, nPorts, 1 ) ) != SOCKET_ERROR ) {
-            httpdlog (  " ", "Looping in poll" );
+            httpdlog ( "Debug", "Looping in poll" );
+            if ( pollfds[0].revents & POLLIN ) {
+                socklen_t addrlen = sizeof ( sockaddr_in );
+                if ( ( client = accept ( srv, ( sockaddr * ) &clientAddr, &addrlen ) ) ) {
+                        tp->assignTask(new ThreadCommand(WORK, client) );
+                }
+            }
+
+            if ( pollfds[1].revents & POLLIN ) {
+                socklen_t addrlen = sizeof ( sockaddr_in );
+                if ( ( client6 = accept ( srv, ( sockaddr * ) &clientAddr, &addrlen ) ) ) {
+                        tp->assignTask(new ThreadCommand(WORK, client6) );
+                }
+            }
+
+            if ( pollfds[2].revents & POLLIN ) {
+                socklen_t addrlen = sizeof ( sockaddr_in );
+                if ( ( sslclient = accept ( srv, ( sockaddr * ) &clientAddr, &addrlen ) ) ) {
+                        tp->assignTask(new ThreadCommand(WORK, sslclient) );
+                }
+            }
+
+            if ( pollfds[3].revents & POLLIN ) {
+                socklen_t addrlen = sizeof ( sockaddr_in );
+                if ( ( sslclient6 = accept ( srv, ( sockaddr * ) &clientAddr, &addrlen ) ) ) {
+                        tp->assignTask(new ThreadCommand(WORK, sslclient6) );
+                }
+            }
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         } else {
-            httpdlog (  " ", "Looping in poll error" );
+            httpdlog ( " ", "Looping in poll error" );
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }

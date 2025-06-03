@@ -58,7 +58,7 @@ void ThreadPool::threadpoolFunction(int id ){
 
         if( cmd == 0 || cmd->task == STBY ){
             std::this_thread::sleep_for(std::chrono::milliseconds(1) );
-            httpdlog(" ", std::to_string(id ) + ": Standing By" );
+            //httpdlog(" ", std::to_string(id ) + ": Standing By" );
         } else if ( cmd->task == STOP ) {
             httpdlog(" ", std::to_string(id ) + ": Exiting" );
             break;
