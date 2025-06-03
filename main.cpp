@@ -17,7 +17,7 @@
 
 using namespace std;
 
-int httpdloglevel = 2;
+
 
 int main()
 {
@@ -217,14 +217,14 @@ int main()
     }
 
     if ( SSL_CTX_use_certificate_file ( cIp6, "C:\\Certs\\httpdwincert.pem", SSL_FILETYPE_PEM ) <= 0 ) {
-        httpdlog (  "ERROR", "Certificate file issue  C:\\Certs\\ \n" );
+        httpdlog (  "ERROR", "Certificate file issue  C:\\Certs\\" );
         return ( 1001 );
     } else {
         httpdlog (  "INFO", "Certificate file loaded C:\\Certs\\httpdwincert.pem" );
     }
 
     if ( SSL_CTX_use_PrivateKey_file ( cIp6,  "C:\\Certs\\httpdwinkey.pem", SSL_FILETYPE_PEM ) <= 0 ) {
-        httpdlog (  "ERROR", "Private key file issue C:\\Certs\\ \n" );
+        httpdlog (  "ERROR", "Private key file issue C:\\Certs\\" );
         return ( 1002 );
     } else {
         httpdlog (  "INFO", "Private key file loaded C:\\Certs\\httpdwinkey.pem" );

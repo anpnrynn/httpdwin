@@ -12,6 +12,7 @@
 				<Option type="1" />
 				<Option compiler="gcc" />
 				<Compiler>
+					<Add option="-std=c++17" />
 					<Add option="-g" />
 				</Compiler>
 			</Target>
@@ -22,6 +23,7 @@
 				<Option compiler="gcc" />
 				<Compiler>
 					<Add option="-O2" />
+					<Add option="-std=c++17" />
 				</Compiler>
 				<Linker>
 					<Add option="-s" />
@@ -30,9 +32,22 @@
 		</Build>
 		<Compiler>
 			<Add option="-Wall" />
+			<Add option="-std=c++17" />
 			<Add option="-fexceptions" />
+			<Add option="-I./" />
+			<Add option="-I../../../Opensource/OpenSSL-Win64/include" />
 		</Compiler>
+		<Linker>
+			<Add option="-lws2_32" />
+			<Add option="../../../../Opensource/OpenSSL-Win64/bin/libcrypto-3-x64.dll" />
+			<Add option="../../../../Opensource/OpenSSL-Win64/bin/libssl-3-x64.dll" />
+		</Linker>
+		<Unit filename="httpdlog.cpp" />
+		<Unit filename="httpdlog.h" />
 		<Unit filename="main.cpp" />
+		<Unit filename="threadpool.cpp" />
+		<Unit filename="threadpool.h" />
+		<Unit filename="version.h" />
 		<Extensions>
 			<lib_finder disable_auto="1" />
 		</Extensions>
