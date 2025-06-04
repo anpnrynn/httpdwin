@@ -1,6 +1,8 @@
 //Copyright Anoop Kumar Narayanan - 2025 httpdwin
 #include <iostream>
+#include <fstream>
 #include <atomic>
+#include <map>
 #include <exception>
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -20,11 +22,42 @@
 
 using namespace std;
 
+typedef map<string, string> Config;
+
+Config httpdwinConfig;
+
+
+int parseConfig(){
+    fstream f;
+    f.open("C:\\Httpdwin\\httpdwin.conf", ios::in);
+    if( f.is_open() ){
+        string line;
+         while( !f.eof() ){
+            std::getline( f, line);
+            int m = line.find('=', 1 );
+            int n = line.find('\n', 1);
+            string name  = line.substr(0,m );
+            string value = line.substr(m+1, n );
+            if( value[value.length()-1] == '\r' )
+                value[value.length()-1] = 0;
+            if( name != "" && value != "" )
+                httpdwinConfig[name ]= value;
+            httpdlog("INFO", name +" = "+ value + " value read." );
+        }
+    } else {
+        return 1;
+    }
+    f.close();
+    return 0;
+}
 
 
 int main()
 {
     httpdlog(" ","Starting up...");
+
+    parseConfig();
+
     SOCKET srv = 0, client = 0;
     SOCKET srv6 = 0, client6 = 0;
     SOCKET sslsrv =0, sslclient = 0;
@@ -195,18 +228,18 @@ int main()
         return ( 1000 );
     }
 
-    if ( SSL_CTX_use_certificate_file ( cIp4, "C:\\Certs\\httpdwincert.pem", SSL_FILETYPE_PEM ) <= 0 ) {
-        httpdlog (  "ERROR", "Certificate file issue C:\\Certs\\httpdwincert.pem" );
+    if ( SSL_CTX_use_certificate_file ( cIp4, "C:\\Httpdwin\\Certs\\httpdwincert.pem", SSL_FILETYPE_PEM ) <= 0 ) {
+        httpdlog (  "ERROR", "Certificate file issue IPv4 C:\\Httpdwin\\Certs\\httpdwincert.pem" );
         return ( 1001 );
     } else {
-        httpdlog (  "INFO", "Certiticate file loaded C:\\Certs\\httpdwincert.pem" );
+        httpdlog (  "INFO", "Certiticate file loaded C:\\Httpdwin\\Certs\\httpdwincert.pem" );
     }
 
-    if ( SSL_CTX_use_PrivateKey_file ( cIp4,"C:\\Certs\\httpdwinkey.pem", SSL_FILETYPE_PEM ) <= 0 ) {
-        httpdlog (  "ERROR", "Private key file issue C:\\Certs\\httpdwinkey.pem" );
+    if ( SSL_CTX_use_PrivateKey_file ( cIp4,"C:\\Httpdwin\\Certs\\httpdwinkey.pem", SSL_FILETYPE_PEM ) <= 0 ) {
+        httpdlog (  "ERROR", "Private key file issue IPv4 C:\\Httpdwin\\Certs\\httpdwinkey.pem" );
         return ( 1002 );
     } else {
-        httpdlog (  "INFO", "Private key file loaded C:\\Certs\\httpdwinkey.pem" );
+        httpdlog (  "INFO", "Private key file loaded C:\\Httpdwin\\Certs\\httpdwinkey.pem" );
     }
 
     const SSL_METHOD *mIp6;
@@ -219,18 +252,18 @@ int main()
         return ( 1000 );
     }
 
-    if ( SSL_CTX_use_certificate_file ( cIp6, "C:\\Certs\\httpdwincert.pem", SSL_FILETYPE_PEM ) <= 0 ) {
-        httpdlog (  "ERROR", "Certificate file issue  C:\\Certs\\" );
+    if ( SSL_CTX_use_certificate_file ( cIp6, "C:\\Httpdwin\\Certs\\httpdwincert.pem", SSL_FILETYPE_PEM ) <= 0 ) {
+        httpdlog (  "ERROR", "Certificate file issue IPv6 C:\\Httpdwin\\Certs\\httpdwincert.pem" );
         return ( 1001 );
     } else {
-        httpdlog (  "INFO", "Certificate file loaded C:\\Certs\\httpdwincert.pem" );
+        httpdlog (  "INFO", "Certificate file loaded C:\\Httpdwin\\Certs\\httpdwincert.pem" );
     }
 
-    if ( SSL_CTX_use_PrivateKey_file ( cIp6,  "C:\\Certs\\httpdwinkey.pem", SSL_FILETYPE_PEM ) <= 0 ) {
-        httpdlog (  "ERROR", "Private key file issue C:\\Certs\\" );
+    if ( SSL_CTX_use_PrivateKey_file ( cIp6,  "C:\\Httpdwin\\Certs\\httpdwinkey.pem", SSL_FILETYPE_PEM ) <= 0 ) {
+        httpdlog (  "ERROR", "Private key file issue IPv6 C:\\Httpdwin\\Certs\\httpdwinkey.pem" );
         return ( 1002 );
     } else {
-        httpdlog (  "INFO", "Private key file loaded C:\\Certs\\httpdwinkey.pem" );
+        httpdlog (  "INFO", "Private key file loaded C:\\Httpdwin\\Certs\\httpdwinkey.pem" );
     }
 
     WSAPOLLFD    *pollfds = new WSAPOLLFD[5];
