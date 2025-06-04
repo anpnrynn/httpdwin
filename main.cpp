@@ -35,14 +35,14 @@ int parseConfig(){
          while( !f.eof() ){
             std::getline( f, line);
             int m = line.find('=', 1 );
-            int n = line.find('\n', 1);
             string name  = line.substr(0,m );
-            string value = line.substr(m+1, n );
+            string value = line.substr(m+1, line.length()-m-1);
             if( value[value.length()-1] == '\r' )
-                value[value.length()-1] = 0;
-            if( name != "" && value != "" )
+                value.pop_back();
+            if( name != "" && value != "" ){
                 httpdwinConfig[name ]= value;
-            httpdlog("DEBUG", name +" = "+ value + " value read." );
+                httpdlog("INFO", name +" = "+ value + " value read." );
+            }
         }
     } else {
         return 1;
