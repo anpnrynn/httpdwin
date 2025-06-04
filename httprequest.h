@@ -3,7 +3,7 @@
 #define HTTPREQUEST_H_INCLUDED
 
 #include <iostream>
-#incldue <map>
+#include <map>
 
 using namespace std;
 
