@@ -42,7 +42,7 @@ int parseConfig(){
                 value[value.length()-1] = 0;
             if( name != "" && value != "" )
                 httpdwinConfig[name ]= value;
-            httpdlog("INFO", name +" = "+ value + " value read." );
+            httpdlog("DEBUG", name +" = "+ value + " value read." );
         }
     } else {
         return 1;
@@ -63,14 +63,20 @@ int main()
     SOCKET sslsrv =0, sslclient = 0;
     SOCKET sslsrv6 = 0, sslclient6 = 0;
 
-    short int serverPort  = 8080;
-    short int serverPort6 = 8080;
-    short int sslserverPort = 8081;
-    short int sslserverPort6 = 8081;
+
+    short int serverPort  = atoi(httpdwinConfig["httpport"].c_str());
+    short int serverPort6 = serverPort;
+    short int sslserverPort = atoi(httpdwinConfig["httpsport"].c_str());
+    short int sslserverPort6 = sslserverPort6;
+
+    char logMsg[256];
+    snprintf( logMsg, 254, "Using HTTP port = %d and, HTTPS port = %d ", serverPort, sslserverPort);
+
+    httpdlog("INFO", logMsg);
 
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 0), &wsaData) != 0) {
-            httpdlog("ERROR", " WSAStartup failed\n"); return 1;
+            httpdlog("ERROR", "WSAStartup failed\n"); return 1;
     }
 
 
@@ -86,7 +92,7 @@ int main()
     sockaddr_in6 sslsrvAddr6;
     sockaddr_in6 sslclientAddr6;
 
-    //httpdlog (  "INFO"," Creating socket(s) \n" );
+    httpdlog (  "INFO","Creating socket(s) \n" );
     srv = socket(PF_INET,  SOCK_STREAM, IPPROTO_TCP);
     srvAddr.sin_family  = AF_INET;
     srvAddr.sin_addr.s_addr     = 0x00000000;
@@ -211,6 +217,8 @@ int main()
         httpdlog (  "ERROR", " Unable to setup backlog - SSL IPv6" );
     }
 
+    httpdlog (  "INFO", "Done setting up Listen" );
+
     unsigned long mode = 1;
     ioctlsocket(srv, FIONBIO, &mode);
     ioctlsocket(srv6, FIONBIO, &mode);
@@ -284,7 +292,10 @@ int main()
     pollfds[3].revents = 0;
 
     int nPorts   = 4;
-    int nThreads = 40;
+    int nThreads = atoi( httpdwinConfig["threads"].c_str() );
+
+    snprintf(logMsg,254, "Starting %d Threads ", nThreads);
+    httpdlog("INFO", logMsg);
 
     ThreadPool *tp = new ThreadPool(nThreads);
 
