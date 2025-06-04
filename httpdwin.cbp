@@ -42,8 +42,15 @@
 			<Add option="../../../../Opensource/OpenSSL-Win64/bin/libcrypto-3-x64.dll" />
 			<Add option="../../../../Opensource/OpenSSL-Win64/bin/libssl-3-x64.dll" />
 		</Linker>
+		<Unit filename="httpconnection.cpp" />
+		<Unit filename="httpconnection.h" />
 		<Unit filename="httpdlog.cpp" />
 		<Unit filename="httpdlog.h" />
+		<Unit filename="httpheaders.cpp" />
+		<Unit filename="httprequest.cpp" />
+		<Unit filename="httprequest.h" />
+		<Unit filename="httpresponse.cpp" />
+		<Unit filename="httpresponse.h" />
 		<Unit filename="main.cpp" />
 		<Unit filename="threadpool.cpp" />
 		<Unit filename="threadpool.h" />
