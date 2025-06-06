@@ -165,14 +165,14 @@ std::map<string,string> httpHeaders =
 
 std::map<string,string> httpMethods =
 {
-    {"GET",  "1"},
+    {"GET",  "0"},
     {"POST", "1"},
-    {"HEAD", "1"},
-    {"PUT",  "1"}
+    {"HEAD", "2"},
+    {"PUT",  "3"}
 };
 
 std::map<string,string> httpVersions = {
-    {"HTTP/1.0", "1"},
+    {"HTTP/1.0", "0"},
     {"HTTP/1.1", "1"},
-    {"HTTP/2.0", "1"}
+    {"HTTP/2.0", "2"}
 };

@@ -16,6 +16,14 @@
 #include <mutex>
 
 
+
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+
+
+
+#include <httprequest.h>
+
 using namespace std;
 
 
@@ -27,17 +35,17 @@ enum Task{
 
 class ThreadCommand{
     public:
-        ThreadCommand( ){ task = STBY; fd = 0; }
-        ThreadCommand( ThreadCommand &cmd ){ task = cmd.task ; fd = cmd.fd ; }
-        ThreadCommand( Task t, SOCKET s){ task = t; fd = s; }
+        ThreadCommand( );
+        ThreadCommand( Task t, SOCKET s, bool ssl =false, bool sslaccepted =false, bool ipv6 = false, int p = -1, string address = "", SSL *_ssl = 0 );
+
         Task task;
         SOCKET fd;
-
-        ThreadCommand & operator = (ThreadCommand & a){
-            task = a.task;
-            fd = a.fd;
-            return (*this);
-        }
+        bool isSsl;
+        bool isSslAccepted;
+        bool isIpv6;
+        int  port;
+        string ipAddress;
+        SSL *ssl;
 };
 
 

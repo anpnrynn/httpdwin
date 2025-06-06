@@ -3,19 +3,21 @@
 #define HTTPREQUEST_H_INCLUDED
 
 #include <iostream>
+#include <fstream>
 #include <map>
 
-using namespace std,
+using namespace std;
 
+const int MAXBUFFER = 1024*1024;
 
 class NameMimeValues {
     public:
-        Name;
-        Mime;
-        Value;
-        TempFileName;
+        string Name;
+        string Mime;
+        string Value;
+        string TempFileName;
         fstream f;
-},
+};
 
 class HttpRequest {
     private:
@@ -30,6 +32,12 @@ class HttpRequest {
         string  m_TempPutFileName;
 
         string  m_Headers[164];
+
+        unsigned char    m_Buffer[MAXBUFFER];
+        int              m_Len;
+
+        HttpRequest();
+        ~HttpRequest();
 
         enum HttpHeader {
         	Accept = 0,
@@ -189,6 +197,6 @@ class HttpRequest {
         };
 
 		static void readHeaderLine( string line );
-},
+};
 
 #endif // HTTPREQUEST_H_INCLUDED

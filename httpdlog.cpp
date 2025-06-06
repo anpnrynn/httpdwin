@@ -1,9 +1,13 @@
 //Copyright Anoop Kumar Narayanan - 2025 //httpdwin
 #include <httpdlog.h>
-
+#include <mutex>
+using namespace std;
 int httpdloglevel = 2;
 
+mutex logmutex;
+
 void httpdlog(char *level, string info ){
+    logmutex.lock();
     switch(level[0]){
     case 'D':
         if( httpdloglevel >= 3)
@@ -23,7 +27,7 @@ void httpdlog(char *level, string info ){
         break;
     case 'X':
         if( httpdloglevel >= 4)
-            cerr<<"EXTRA"<<" : "<<info<<endl;
+            cerr<<"XTRA "<<" : "<<info<<endl;
         break;
     case ' ':
         if( httpdloglevel >= 0)
@@ -34,4 +38,5 @@ void httpdlog(char *level, string info ){
             cerr<<"     "<<" : "<<info<<endl;
         break;
     }
+    logmutex.unlock();
 }
