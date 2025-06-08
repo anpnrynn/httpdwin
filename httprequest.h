@@ -12,12 +12,16 @@ const int MAXBUFFER = 1024*1024;
 
 class NameMimeValues {
     public:
-        string Name;
-        string Mime;
-        string Value;
-        string TempFileName;
-        fstream f;
+        string m_Name;
+        string m_Mime;
+        string m_Value;
+        string m_TempFileName;
+        fstream m_f;
+
+        NameMimeValues & operator =( const NameMimeValues&);
 };
+
+typedef map<string, NameMimeValues*> Query;
 
 class HttpRequest {
     private:
@@ -27,11 +31,16 @@ class HttpRequest {
         string  m_Version;
         string  m_DecodedUrl;
         string  m_EncodedUrl;
+        string  m_RequestFile;
+        Query   query;
 
+        string  m_Filename;
         string  m_TempPostFileName;
         string  m_TempPutFileName;
 
         string  m_Headers[164];
+        int     m_FieldCount;
+        bool    m_HttpHeaderComplete;
 
         unsigned char    m_Buffer[MAXBUFFER];
         int              m_Len;
@@ -196,7 +205,18 @@ class HttpRequest {
         	X_XSS_ProtectionNon_standardDeprecated,
         };
 
-		static void readHeaderLine( string line );
+        static void readHttpReqLine( HttpRequest *req, string &line );
+		static void readHeaderLine ( HttpRequest *req, string &line );
+		static void readHttpHeader ( HttpRequest *req, char *buffer, int *len, int totalLen);
+		static void readHttpData   ( char *buffer, int *len, int totalLen, string *filename );
+
+               void decodeUrl();
+               void parseQuerystring();
+               void parsePostDataQueryString();
+               void processPostData( string *filename );
+               void processMultipartData ( string *filename );
+
+
 };
 
 #endif // HTTPREQUEST_H_INCLUDED

@@ -21,7 +21,7 @@
 #include <openssl/err.h>
 
 
-
+#include <httpresponse.h>
 #include <httprequest.h>
 
 using namespace std;
@@ -68,6 +68,7 @@ public :
 
     void createPool(int n );
     void assignTask (ThreadCommand *cmd );
+    static int  isFullHeaderPresent(char *data, int len);
     static void threadpoolFunction(int id);
 
 

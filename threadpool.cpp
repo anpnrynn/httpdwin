@@ -70,6 +70,24 @@ void ThreadPool::assignTask(ThreadCommand *cmd){
     }
 }
 
+
+int ThreadPool::isFullHeaderPresent( char *data, int len ){
+    int i = 0;
+    char ch = 0;
+    while( i < len ){
+        ch = data[i];
+        if( ch == '\r')
+        {
+            if( data[i+1] == '\n' && data[i+2] == '\r' && data[i+3] == '\n' ){
+                httpdlog("INFO","isFullHeaderPresent: Data starts here : "+std::to_string(i+4));
+                return i+4;
+            }
+        }
+        i++;
+    }
+    return 0;
+}
+
 void ThreadPool::threadpoolFunction(int id ){
     bool standby = true;
     bool dataNotReceived = true;
@@ -114,6 +132,10 @@ void ThreadPool::threadpoolFunction(int id ){
                             req->m_Buffer[req->m_Len] = 0;
                             httpdlog("INFO", (char *)req->m_Buffer );
                             nBytes = 0;
+
+                            int hLen = 0;
+                            HttpRequest::readHttpHeader ( req, (char *)(req->m_Buffer), &hLen, req->m_Len );
+
                         } else if ( nBytes == 0 ){
                             std::this_thread::sleep_for(std::chrono::microseconds(10) );
                         } else {
@@ -129,14 +151,66 @@ void ThreadPool::threadpoolFunction(int id ){
                 }
 
             } else {
+                httpdlog("INFO", std::to_string(id ) + ": Working " + (cmd->isSsl?"SSL":"Non-SSL") + (cmd->isIpv6?" - IPv6":" - IPv4")  );
                 HttpRequest *req = new HttpRequest();
-                int nBytes = recv ( cmd->fd, (char *)req->m_Buffer, MAXBUFFER-req->m_Len, 0 );
-                httpdlog( "INFO", "Received data ");
-                if( nBytes > 0 ){
-                    req->m_Len += nBytes;
-                    req->m_Buffer[req->m_Len] = 0;
-                    httpdlog("INFO", (char *)req->m_Buffer );
+                int dataStartPresent = 0;
+                int dataStart = 0;
+                int nBytes = 0;
+                req->m_Len = 0;
+                while( true ){
+                    nBytes = recv ( cmd->fd, (char *)req->m_Buffer, MAXBUFFER-req->m_Len, 0 );
+                    if( nBytes > 0 ){
+                        dataStartPresent   = 0;
+                        dataStartPresent   = ThreadPool::isFullHeaderPresent((char*)&(req->m_Buffer[req->m_Len]), nBytes );
+                        req->m_Len += nBytes;
+                        if( dataStartPresent == 0 ){
+                            dataStart += nBytes;
+                        } else {
+                            dataStart += dataStartPresent;
+                            break;
+                        }
+                    } else if ( nBytes < 0 ){
+                        httpdlog("INFO", std::to_string(id ) + ": Received negative bytes : " + std::to_string(nBytes) );
+                        //dataStart = 0;
+                        break;
+                    }
                 }
+                int hLen = 0;
+                HttpRequest::readHttpHeader ( req, (char *)(req->m_Buffer), &hLen, req->m_Len );
+                httpdlog("INFO", std::to_string(id ) + ": Data starts from : " + std::to_string(dataStart) + " Total Read: " + std::to_string(req->m_Len) );
+
+                bool hasDataBeenRead = false;
+                if( req->m_Len > dataStart ){
+                    //Write to file, possible post data or multipart post data or put data
+                }
+                hasDataBeenRead = true;
+
+                if( req->m_Len == dataStart || hasDataBeenRead ){
+                    //No extra data like post or post multipart or put data
+                    HttpResponse *resp = HttpResponse::CreateSimpleResponse(req->m_RequestFile);
+                    httpdlog("INFO", std::to_string(id ) + ": Building response header " );
+                    resp->BuildResponseHeader(0);
+                    httpdlog("INFO", std::to_string(id ) + ": Built response header " );
+                    resp->addResponseData(resp->m_HttpData);
+                    httpdlog("INFO", std::to_string(id ) + ": Adding data " );
+
+                    int nHttpDataBytes = strlen( (char *)resp->m_Buffer );
+
+                    httpdlog("INFO",  std::to_string(id )+": " + (char *)resp->m_Buffer );
+
+                    int partial = 0, n =0;
+                    do {
+                        n =  send ( cmd->fd, (char *)&(resp->m_Buffer[partial]), nHttpDataBytes, 0 );
+                        if( n > 0 ){
+                            partial += n;
+                        } else if( n == -1 ){
+                            break;
+                        } else {
+                        }
+                    }while ( partial < nHttpDataBytes );
+                }
+                //Extra read part starts here
+                //Write part starts here
             }
         }
     }
