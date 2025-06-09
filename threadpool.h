@@ -36,8 +36,8 @@ enum Task{
 class ThreadCommand{
     public:
         ThreadCommand( );
-        ThreadCommand( Task t, SOCKET s, bool ssl =false, bool sslaccepted =false, bool ipv6 = false, int p = -1, string address = "", SSL *_ssl = 0 );
-
+        ThreadCommand( Task _task, SOCKET _socket, bool _isSsl, bool _isSslaccepted, bool _ipv6, int _p, string address, SSL *_ssl);
+        ~ThreadCommand( );
         Task task;
         SOCKET fd;
         bool isSsl;
@@ -52,11 +52,16 @@ class ThreadCommand{
 typedef queue<ThreadCommand*> ThreadQueue;
 typedef vector<thread*> Threads;
 
+#define MAXTHREADS 256
+
 class ThreadPool{
 
 private:
     int nThreads;
     int threadId;
+    int threadTaskCount[MAXTHREADS];
+    int threadTaskDoneCount[MAXTHREADS];
+
     Threads *threads;
     static mutex   *threadmutexes;
     static ThreadQueue *threadQueue;
@@ -68,6 +73,8 @@ public :
 
     void createPool(int n );
     void assignTask (ThreadCommand *cmd );
+    void assignTaskRr (ThreadCommand *cmd );
+    void taskDone(int i );
     static int  isFullHeaderPresent(char *data, int len);
     static void threadpoolFunction(int id);
 

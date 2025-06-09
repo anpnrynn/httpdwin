@@ -307,16 +307,16 @@ int main()
             if ( pollfds[0].revents & POLLIN ) {
                 socklen_t addrlen = sizeof ( sockaddr_in );
                 if ( ( client = accept ( srv, ( sockaddr * ) &clientAddr, &addrlen ) ) ) {
-                        httpdlog("INFO", "ipv4 connection received");
-                        tp->assignTask(new ThreadCommand(WORK, client, false, false, false, 0, "") );
+                        httpdlog("INFO", "Assigning IPv4 task ");
+                        tp->assignTaskRr(new ThreadCommand(WORK, client, false, false, false, 0, "", 0) );
                 }
             }
 
             if ( pollfds[1].revents & POLLIN ) {
                 socklen_t addrlen = sizeof ( sockaddr_in6 );
                 if ( ( client6 = accept ( srv6, ( sockaddr * ) &clientAddr6, &addrlen ) ) ) {
-                        httpdlog("INFO", "ipv6 connection received");
-                        tp->assignTask(new ThreadCommand(WORK, client6, false, false, true, 0, "") );
+                        httpdlog("INFO", "Assigning IPv6 task ");
+                        tp->assignTaskRr(new ThreadCommand(WORK, client6, false, false, true, 0, "", 0) );
                 }
             }
 
@@ -358,20 +358,29 @@ int main()
                                 else if ( rc < 0 ) {
                                     httpdlog("INFO", "SSL ipv4 connection  error");
                                     isSslAccepted = false;
+                                    closesocket( sslclient );
+                                    SSL_shutdown ( ssl );
+                                    SSL_free ( ssl );
+                                    ssl = 0;
                                     break;
                                 } else {
                                     httpdlog("INFO", "SSL ipv4 connection error something else");
                                     isSslAccepted = false;
+                                    closesocket( sslclient );
+                                    SSL_shutdown ( ssl );
+                                    SSL_free ( ssl );
+                                    ssl = 0;
                                     break;
                                 }
                             }
                             std::this_thread::sleep_for(std::chrono::microseconds(1));
                         }
 
-                        if( isSslAccepted ) {
-                            httpdlog("INFO", "Assigning task ipv6 ");
-                            ThreadCommand *t = new ThreadCommand(WORK, sslclient6, true, isSslAccepted, true, 0, "", ssl);
-                            tp->assignTask( t );
+                        if( ssl && isSslAccepted ) {
+                            httpdlog("INFO", "Assigning task SSL ipv4 ");
+                            //ThreadCommand *t = new ThreadCommand(WORK, sslclient, true, isSslAccepted, false, 0, "", ssl);
+                            ThreadCommand *t = new ThreadCommand(WORK, sslclient, true, isSslAccepted, false, 0, "", ssl);
+                            tp->assignTaskRr( t );
                         }
                 }
             }
@@ -414,10 +423,18 @@ int main()
                                 else if ( rc < 0 ) {
                                     httpdlog("INFO", "SSL ipv6 connection error");
                                     isSslAccepted = false;
+                                    closesocket( sslclient6 );
+                                    SSL_shutdown ( ssl6 );
+                                    SSL_free ( ssl6 );
+                                    ssl6 = 0;
                                     break;
                                 } else {
                                     httpdlog("INFO", "SSL ipv6 connection error something else");
                                     isSslAccepted = false;
+                                    closesocket( sslclient6 );
+                                    SSL_shutdown ( ssl6 );
+                                    SSL_free ( ssl6 );
+                                    ssl6 = 0;
                                     break;
                                 }
                             }
@@ -425,10 +442,10 @@ int main()
                         }
 
 
-                        if( isSslAccepted ){
-                            httpdlog("INFO", "Assigning task ipv6 ");
+                        if( ssl6 && isSslAccepted ){
+                            httpdlog("INFO", "Assigning task SSL ipv6 ");
                             ThreadCommand *t = new ThreadCommand(WORK, sslclient6, true, isSslAccepted, true, 0, "", ssl6);
-                            tp->assignTask( t );
+                            tp->assignTaskRr( t );
                         }
                 }
             }
