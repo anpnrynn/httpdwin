@@ -8,7 +8,7 @@
 
 using namespace std;
 
-const int MAXBUFFER = 1024*1024;
+const int MAXBUFFER = 1*1024*1024;
 
 class NameMimeValues {
     public:
@@ -43,7 +43,7 @@ class HttpRequest {
         bool    m_HttpHeaderComplete;
 
         unsigned char    m_Buffer[MAXBUFFER];
-        int              m_Len;
+        size_t           m_Len;
 
         HttpRequest();
         ~HttpRequest();

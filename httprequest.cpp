@@ -1,4 +1,5 @@
 //Copyright Anoop Kumar Narayanan - 2025 //httpdwin
+#define _CRT_SECURE_NO_WARNINGS
 #include <httprequest.h>
 #include <vector>
 #include <iostream>
@@ -10,6 +11,8 @@ using namespace std;
 
 #include <httpdlog.h>
 
+#define _CRT_SECURE_NO_WARNINGS
+
 typedef vector<string> VectorStr;
 extern std::map<string,string> httpHeaders;
 
@@ -18,6 +21,7 @@ NameMimeValues & NameMimeValues::operator =( const NameMimeValues& cp){
     m_Name  = cp.m_Name;
     m_Mime  = cp.m_Mime;
     m_Value = cp.m_Value;
+    return *this;
 }
 
 HttpRequest::HttpRequest(){
@@ -27,6 +31,7 @@ HttpRequest::HttpRequest(){
 }
 
 HttpRequest::~HttpRequest(){
+    httpdlog("DEBUG", "Deleting request object: " + to_string((unsigned long long int) this));
     m_Len = 0;
 }
 
@@ -50,7 +55,7 @@ void HttpRequest::decodeUrl(){
 }
 
 void HttpRequest::parseQuerystring(){
-    int i = 0;
+    size_t i = 0;
     while ( m_DecodedUrl[i] != '?' && i < m_DecodedUrl.length() ){
         m_RequestFile += m_DecodedUrl[i++];
     }
@@ -154,7 +159,7 @@ void HttpRequest::readHeaderLine ( HttpRequest *req, string &line ){
 void HttpRequest::readHttpHeader ( HttpRequest *req, char *buffer, int *len, int totalLen){
     VectorStr vs;
     char *line = buffer;
-    int i = 0;
+    size_t i = 0;
     *len = 0;
     while( i < totalLen ){
         if( buffer[i] == '\r'){

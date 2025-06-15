@@ -1,6 +1,10 @@
 //Copyright Anoop Kumar Narayanan - 2025 //httpdwin
+#define _CRT_SECURE_NO_WARNINGS
 #include <threadpool.h>
 #include <httpdlog.h>
+
+
+
 mutex *ThreadPool::threadmutexes;
 ThreadQueue * ThreadPool::threadQueue;
 
@@ -71,12 +75,12 @@ ThreadPool::~ThreadPool(){
 }
 
 void ThreadPool::assignTask(ThreadCommand *cmd){
-    int leastBusy = 10000;
+    size_t leastBusy = 10000;
     int selected = -999;
     int i = 0;
     while( i < nThreads){
         threadmutexes[i].lock();
-        int n = threadQueue[i].size();
+        size_t n = threadQueue[i].size();
         if( n < leastBusy){
             leastBusy = n;
             selected  = i;
@@ -114,7 +118,7 @@ void ThreadPool::assignTaskRr(ThreadCommand *cmd){
     }
 
     if( leastBusyThread < nThreads){
-        threadmutexes[leastBusyThread].unlock();
+        threadmutexes[leastBusyThread].lock();
         httpdlog("INFO", std::to_string(leastBusyThread) + ": Thread assigned the task" );
         threadQueue[leastBusyThread].push(cmd);
         threadTaskCount[leastBusyThread]++;
@@ -131,8 +135,8 @@ void ThreadPool::taskDone(int i){
 
 
 
-int ThreadPool::isFullHeaderPresent( char *data, int len ){
-    int i = 0;
+size_t ThreadPool::isFullHeaderPresent( char *data, size_t len ){
+    size_t i = 0;
     char ch = 0;
     while( i < len ){
         ch = data[i];
@@ -182,10 +186,10 @@ void ThreadPool::threadpoolFunction(int id ){
             continue;
 
         } else if ( cmd->task == STOP ) {
-            std::this_thread::sleep_for(std::chrono::microseconds(10) );
+            std::this_thread::sleep_for(std::chrono::microseconds(1000) );
             httpdlog("INFO", std::to_string(id ) + ": Exiting" );
             break;
-        } else { //WORK
+        } else if ( cmd->task == WORK ) { //WORK
             std::this_thread::sleep_for(std::chrono::milliseconds(1) );
             httpdlog("INFO", std::to_string(id ) + ": Working " + (cmd->isSsl?"SSL":"Non-SSL") + (cmd->isIpv6?" - IPv6":" - IPv4")  );
             if( cmd->isSsl ){
@@ -198,11 +202,12 @@ void ThreadPool::threadpoolFunction(int id ){
                 }
                 httpdlog("INFO",std::to_string(id ) + ": SSL connection received" + (cmd->isIpv6?" - IPv6 ":" - IPv4 ") + std::to_string( (unsigned long long int)cmd->ssl));
                 HttpRequest *req = new HttpRequest();
-                int dataStartPresent = 0;
-                int dataStart = 0;
+                size_t dataStartPresent = 0;
+                size_t dataStart = 0;
                 size_t nBytes = 0;
                 req->m_Len = 0;
                 int rc = 0;
+                int count = 0;
                 while( true ){
                     rc = SSL_read_ex ( cmd->ssl, req->m_Buffer, MAXBUFFER - req->m_Len, &nBytes );
                     //nBytes = recv ( cmd->fd, (char *)req->m_Buffer, MAXBUFFER-req->m_Len, 0 );
@@ -218,7 +223,13 @@ void ThreadPool::threadpoolFunction(int id ){
                         }
                     } else if ( nBytes <= 0 ){
                         if( rc == 0 ){
-                            httpdlog("INFO", std::to_string(id ) + ": Received 0 Bytes : " + std::to_string(nBytes) );
+                            if (count++ > 500) {
+                                httpdlog("INFO", std::to_string(id) + ": SSL socket received 0 data 500 times, breaking out of loop");
+                                delete cmd;
+                                cmd = 0;
+                                break;
+                            }
+                            httpdlog("INFO", std::to_string(id ) + ": SSL socket received 0 Bytes : " + std::to_string(nBytes) );
                             std::this_thread::sleep_for(std::chrono::microseconds(10) );
                         } else {
                             httpdlog("INFO", std::to_string(id ) + ": Received negative bytes : " + std::to_string(nBytes) );
@@ -229,8 +240,11 @@ void ThreadPool::threadpoolFunction(int id ){
                     }
                 }
 
-                if( !cmd )
+                if (!cmd) {
+                    delete req;
+                    req = 0;
                     continue;
+                }
 
                 int hLen = 0;
                 HttpRequest::readHttpHeader ( req, (char *)(req->m_Buffer), &hLen, req->m_Len );
@@ -243,104 +257,242 @@ void ThreadPool::threadpoolFunction(int id ){
                 hasDataBeenRead = true;
 
                 if( req->m_Len == dataStart || hasDataBeenRead ){
-                    //No extra data like post or post multipart or put data
-                    HttpResponse *resp = HttpResponse::CreateSimpleResponse(req->m_RequestFile);
-                    httpdlog("INFO", std::to_string(id ) + ": Building response header " );
-                    resp->BuildResponseHeader(0);
-                    httpdlog("INFO", std::to_string(id ) + ": Built response header " );
-                    resp->addResponseData(resp->m_HttpData);
-                    httpdlog("INFO", std::to_string(id ) + ": Adding data " );
 
-                    int nHttpDataBytes = strlen( (char *)resp->m_Buffer );
+                    HttpResponse* resp = HttpResponse::CreateFileResponse(req->m_RequestFile);
+                    if (resp->m_Fhandle.is_open()) {
 
-                    httpdlog("INFO",  std::to_string(id )+": " + (char *)resp->m_Buffer );
+                        resp->BuildResponseHeader(0);
+                        size_t nHttpDataBytes = resp->m_ResponseHeaderLen + resp->getFileSize();
+                        httpdlog("INFO", std::to_string(id) + ": Built response header for file access, bytes to send : " + to_string(nHttpDataBytes));
+                        resp->m_Fhandle.seekg(0, ios::beg);
 
-                    int partial = 0, n =0;
-                    do {
-                        //n =  send ( cmd->fd, (char *)&(resp->m_Buffer[partial]), nHttpDataBytes, 0 );
-                        n = SSL_write ( cmd->ssl, (char *)&(resp->m_Buffer[partial]), nHttpDataBytes-partial );
-                        if( n > 0 ){
-                            partial += n;
-                        } else if( n == -1 ){
-                            break;
-                        } else {
+                        long long int totalBytes = 0;
+                        long long int totalFileBytes = 0;
+                        long long int bufferBytes = resp->m_ResponseHeaderLen;
+                        long long int offset = 0;
+                        long long int partial = 0;
+                        long long int n = 0;
+
+                        resp->m_Buffer[resp->m_ResponseHeaderLen] = 0;
+                        httpdlog("INFO", (char*)resp->m_Buffer);
+                        while (totalBytes < nHttpDataBytes) {
+
+                            partial = 0;
+                            n = 0;
+
+                            while (partial < bufferBytes) {
+                                //n = send(cmd->fd, (char*)&(resp->m_Buffer[partial]), bufferBytes - partial, 0);
+                                n = SSL_write(cmd->ssl, (char*)&(resp->m_Buffer[partial]), bufferBytes - partial);
+                                if (n > 0) {
+                                    partial += n;
+                                }
+                                else if (n < 0) {
+                                }
+                                else {
+                                }
+                            }
+                            httpdlog("DEBUG", "Sent Bytes :" + to_string(partial));
+                            totalBytes += partial;
+                            httpdlog("DEBUG ", "Total:  " + to_string(totalBytes));
+                            if (resp->m_Fhandle.eof())
+                                break;
+                            offset = resp->m_Fhandle.tellg();
+                            if (offset == -1)
+                                break;
+                            httpdlog("DEBUG ", "Offset: " + to_string(offset));
+                            if (resp->m_Fhandle.read((char*)(resp->m_Buffer), MAXBUFFER))
+                                bufferBytes = resp->m_Fhandle.tellg() - offset;
+                            else
+                                bufferBytes = resp->m_ActualFileSize - totalBytes + resp->m_ResponseHeaderLen;
+                            httpdlog("DEBUG ", "---------------------------------------");
                         }
-                    }while ( partial < nHttpDataBytes );
+                        httpdlog("DEBUG ", "Total bytes sent including header: " + to_string(totalBytes));
+                        delete resp;
+                    } else {
+                        //httpdlog("INFO",  std::to_string(id )+": " + (char *)resp->m_Buffer );
+                        delete resp; resp = 0;
+                        HttpResponse* resp = HttpResponse::CreateSimpleResponse(req->m_RequestFile);
+                        httpdlog("INFO", std::to_string(id) + ": Building response header ");
+                        resp->BuildResponseHeader(0);
+                        httpdlog("INFO", std::to_string(id) + ": Built response header ");
+                        resp->addResponseData(resp->m_HttpData);
+                        httpdlog("INFO", std::to_string(id) + ": Adding data " +(char*)(resp->m_Buffer  ) );
+                        size_t nHttpDataBytes = strlen((char*)resp->m_Buffer);
 
-                    httpdlog("INFO",  std::to_string(id )+": Deleting connection object "+ std::to_string((unsigned long long int )cmd) );
+                        int partial = 0, n = 0;
+                        do {
+                            n = SSL_write(cmd->ssl, (char*)&(resp->m_Buffer[partial]), nHttpDataBytes - partial);
+                            if (n > 0) {
+                                partial += n;
+                            }
+                            else if (n == -1) {
+                                break;
+                            }
+                            else {
+                            }
+                        } while (partial < nHttpDataBytes);
+
+                        delete resp; resp = 0;
+                    }
+                    httpdlog("DEBUG", std::to_string(id) + ": Deleting work object " + std::to_string((unsigned long long int)cmd));
+                    closesocket(cmd->fd);
+                    cmd->fd = 0;
                     delete cmd;
                     cmd = 0;
                 }
-            } else {
-                httpdlog("INFO", std::to_string(id ) + ": Working " + (cmd->isSsl?"SSL":"Non-SSL") + (cmd->isIpv6?" - IPv6":" - IPv4")  );
-                HttpRequest *req = new HttpRequest();
+                if (req) {
+                    delete req; req = 0;
+                }
+            }
+            else {
+                httpdlog("INFO", std::to_string(id) + ": Working " + (cmd->isSsl ? "SSL" : "Non-SSL") + (cmd->isIpv6 ? " - IPv6" : " - IPv4"));
+                HttpRequest* req = new HttpRequest();
                 int dataStartPresent = 0;
                 int dataStart = 0;
                 int nBytes = 0;
                 req->m_Len = 0;
-                while( true ){
-                    nBytes = recv ( cmd->fd, (char *)req->m_Buffer, MAXBUFFER-req->m_Len, 0 );
-                    if( nBytes > 0 ){
-                        dataStartPresent   = 0;
-                        dataStartPresent   = ThreadPool::isFullHeaderPresent((char*)&(req->m_Buffer[req->m_Len]), nBytes );
+                int count = 0;
+                while (true) {
+                    nBytes = recv(cmd->fd, (char*)req->m_Buffer, MAXBUFFER - req->m_Len, 0);
+                    if (nBytes > 0) {
+                        dataStartPresent = 0;
+                        dataStartPresent = ThreadPool::isFullHeaderPresent((char*)&(req->m_Buffer[req->m_Len]), nBytes);
                         req->m_Len += nBytes;
-                        if( dataStartPresent == 0 ){
+                        if (dataStartPresent == 0) {
                             dataStart += nBytes;
-                        } else {
+                        }
+                        else {
                             dataStart += dataStartPresent;
                             break;
                         }
-                    } else if ( nBytes < 0 ){
-                        httpdlog("INFO", std::to_string(id ) + ": Received negative bytes : " + std::to_string(nBytes) );
+                    }
+                    else if (nBytes < 0) {
+                        httpdlog("INFO", std::to_string(id) + ": Received negative bytes : " + std::to_string(nBytes));
                         delete cmd;
-                        cmd =0;
+                        cmd = 0;
                         break;
+                    }
+                    else {
+                        if (count++ > 500) {
+                            httpdlog("INFO", std::to_string(id) + ": socket received 0 data 500 times, breaking out of loop");
+                            delete cmd;
+                            cmd = 0;
+                            break;
+                        }
+                        httpdlog("INFO", std::to_string(id) + ": socket received 0 Bytes : " + std::to_string(nBytes));
+                        std::this_thread::sleep_for(std::chrono::microseconds(10));
                     }
                 }
 
-                if(!cmd )
+                if (!cmd) {
+                    delete req;
+                    req = 0;
                     continue;
+                }
 
                 int hLen = 0;
-                HttpRequest::readHttpHeader ( req, (char *)(req->m_Buffer), &hLen, req->m_Len );
-                httpdlog("INFO", std::to_string(id ) + ": Data starts from : " + std::to_string(dataStart) + " Total Read: " + std::to_string(req->m_Len) );
+                HttpRequest::readHttpHeader(req, (char*)(req->m_Buffer), &hLen, req->m_Len);
+                httpdlog("INFO", std::to_string(id) + ": Data starts from : " + std::to_string(dataStart) + " Total Read: " + std::to_string(req->m_Len));
 
                 bool hasDataBeenRead = false;
-                if( req->m_Len > dataStart ){
+                if (req->m_Len > dataStart) {
                     //Write to file, possible post data or multipart post data or put data
                 }
                 hasDataBeenRead = true;
 
-                if( req->m_Len == dataStart || hasDataBeenRead ){
-                    //No extra data like post or post multipart or put data
-                    HttpResponse *resp = HttpResponse::CreateSimpleResponse(req->m_RequestFile);
-                    httpdlog("INFO", std::to_string(id ) + ": Building response header " );
-                    resp->BuildResponseHeader(0);
-                    httpdlog("INFO", std::to_string(id ) + ": Built response header " );
-                    resp->addResponseData(resp->m_HttpData);
-                    httpdlog("INFO", std::to_string(id ) + ": Adding data " );
+                if (req->m_Len == dataStart || hasDataBeenRead) {
+                    //httpdlog("INFO", std::to_string(id ) + ": "+ req->m_RequestFile );
+                    HttpResponse* resp = HttpResponse::CreateFileResponse(req->m_RequestFile);
+                    if (resp->m_Fhandle.is_open()) {
 
-                    int nHttpDataBytes = strlen( (char *)resp->m_Buffer );
+                        resp->BuildResponseHeader(0);
+                        size_t nHttpDataBytes = resp->m_ResponseHeaderLen + resp->getFileSize();
+                        httpdlog("INFO", std::to_string(id) + ": Built response header for file access, bytes to send : " + to_string(nHttpDataBytes));
+                        resp->m_Fhandle.seekg(0, ios::beg);
 
-                    httpdlog("INFO",  std::to_string(id )+": " + (char *)resp->m_Buffer );
+                        long long int totalBytes = 0;
+                        long long int totalFileBytes = 0;
+                        long long int bufferBytes = resp->m_ResponseHeaderLen;
+                        long long int offset = 0;
+                        long long int partial = 0;
+                        long long int n = 0;
 
-                    int partial = 0, n =0;
-                    do {
-                        n =  send ( cmd->fd, (char *)&(resp->m_Buffer[partial]), nHttpDataBytes - partial, 0 );
-                        if( n > 0 ){
-                            partial += n;
-                        } else if( n == -1 ){
-                            break;
-                        } else {
+                        resp->m_Buffer[resp->m_ResponseHeaderLen] = 0;
+                        httpdlog("INFO", (char*)resp->m_Buffer);
+                        while (totalBytes < nHttpDataBytes) {
+
+                            partial = 0;
+                            n = 0;
+
+                            while (partial < bufferBytes) {
+                                n = send(cmd->fd, (char*)&(resp->m_Buffer[partial]), bufferBytes - partial, 0);
+                                if (n > 0) {
+                                    partial += n;
+                                }
+                                else if (n < 0) {
+                                }
+                                else {
+                                }
+                            }
+                            httpdlog("DEBUG", "Sent Bytes :" + to_string(partial));
+                            totalBytes += partial;
+                            httpdlog("DEBUG ", "Total:  " + to_string(totalBytes));
+                            if (resp->m_Fhandle.eof())
+                                break;
+                            offset = resp->m_Fhandle.tellg();
+                            if (offset == -1)
+                                break;
+                            httpdlog("DEBUG ", "Offset: " + to_string(offset));
+                            if (resp->m_Fhandle.read((char*)(resp->m_Buffer), MAXBUFFER))
+                                bufferBytes = resp->m_Fhandle.tellg() - offset;
+                            else
+                                bufferBytes = resp->m_ActualFileSize - totalBytes + resp->m_ResponseHeaderLen;
+                            httpdlog("DEBUG ", "---------------------------------------");
                         }
-                    }while ( partial < nHttpDataBytes );
+                        httpdlog("DEBUG ", "Total bytes sent including header: " + to_string(totalBytes));
+                        delete resp;
+                    }
+                    else {
 
-                    httpdlog("INFO",  std::to_string(id )+": Deleting connection object "+ std::to_string((unsigned long long int )cmd) );
-                    closesocket( cmd->fd );
+                        delete resp; resp = 0;
+                        //httpdlog("INFO",  std::to_string(id )+": " + (char *)resp->m_Buffer );
+                        HttpResponse* resp = HttpResponse::CreateSimpleResponse(req->m_RequestFile);
+                        httpdlog("INFO", std::to_string(id) + ": Building response header ");
+                        resp->BuildResponseHeader(0);
+                        httpdlog("INFO", std::to_string(id) + ": Built response header ");
+                        resp->addResponseData(resp->m_HttpData);
+                        httpdlog("INFO", std::to_string(id) + ": Adding data ");
+                        size_t nHttpDataBytes = strlen((char*)resp->m_Buffer);
+
+                        int partial = 0, n = 0;
+                        do {
+                            n = send(cmd->fd, (char*)&(resp->m_Buffer[partial]), nHttpDataBytes - partial, 0);
+                            if (n > 0) {
+                                partial += n;
+                            }
+                            else if (n == -1) {
+                                break;
+                            }
+                            else {
+                            }
+                        } while (partial < nHttpDataBytes);
+
+                        delete resp;
+                        resp = 0;
+                    }
+
+                    httpdlog("DEBUG", std::to_string(id) + ": Deleting work object " + std::to_string((unsigned long long int)cmd));
+                    closesocket(cmd->fd);
+                    cmd->fd = 0;
                     delete cmd;
                     cmd = 0;
                 }
+                if (req) {
+                    delete req; req = 0;
+                }
             }
+        } else {
+            std::this_thread::sleep_for(std::chrono::microseconds(1000) );
         }
     }
 }

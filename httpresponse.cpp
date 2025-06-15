@@ -1,13 +1,104 @@
 //Copyright Anoop Kumar Narayanan - 2025 //httpdwin
-
+#define _CRT_SECURE_NO_WARNINGS
 #include <iostream>
-
+#include <fstream>
+#include <exception>
+#include <filesystem>
+using namespace std;
+using namespace std::filesystem;
 
 #include <string.h>
 
 
 #include <httpresponse.h>
 #include <version.h>
+#include <httpdlog.h>
+
+
+
+string HttpResponse::pagesFolder = "C:\\HttpdWin\\Pages";
+
+map<string,string> HttpResponse::mimeTypes =
+{
+{".aac"   ,"audio/aac" },
+{".apng"  ,"image/apng" },
+{".avi"   ,"video/x-msvideo" },
+{".bin"   ,"application/octet-stream" },
+{"."      ,"application/octet-stream" },
+{".bmp"   ,"image/bmp" },
+{".bz"    ,"application/x-bzip" },
+{".bz2"   ,"application/x-bzip2" },
+{".css"   ,"text/css" },
+{".csv"   ,"text/csv" },
+{".doc"   ,"application/msword" },
+{".docx"  ,"application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+{".gz"    ,"application/x-gzip" },
+{".gif"   ,"image/gif" },
+{".htm"   ,"text/html" },
+{".html"  ,"text/html" },
+{".ico"   ,"image/vnd.microsoft.icon" },
+{".jar"   ,"application/java-archive" },
+{".jpeg"  ,"image/jpeg" },
+{".jpg"   ,"image/jpeg" },
+{".js"    ,"text/javascript" },
+{".json"  ,"application/json" },
+{".md"    ,"text/markdown" },
+{".mp3"   ,"audio/mpeg" },
+{".mp4"   ,"video/mp4" },
+{".mpeg"  ,"video/mpeg" },
+{".odp"   ,"application/vnd.oasis.opendocument.presentation" },
+{".ods"   ,"application/vnd.oasis.opendocument.spreadsheet" },
+{".odt"   ,"application/vnd.oasis.opendocument.text" },
+{".oga"   ,"audio/ogg" },
+{".ogv"   ,"video/ogg" },
+{".ogx"   ,"application/ogg" },
+{".opus"  ,"audio/ogg" },
+{".otf"   ,"font/otf" },
+{".png"   ,"image/png" },
+{".pdf"   ,"application/pdf" },
+{".php"   ,"application/x-httpd-php" },
+{".ppt"   ,"application/vnd.ms-powerpoint" },
+{".pptx"  ,"application/vnd.openxmlformats-officedocument.presentationml.presentation" },
+{".rar"   ,"application/vnd.rar" },
+{".rtf"   ,"application/rtf" },
+{".sh"    ,"application/x-sh" },
+{".svg"   ,"image/svg+xml" },
+{".tar"   ,"application/x-tar" },
+{".tif"   ,"image/tiff" },
+{".tiff"  ,"image/tiff" },
+{".ttf"   ,"font/ttf" },
+{".txt"   ,"text/plain" },
+{".wav"   ,"audio/wav" },
+{".weba"  ,"audio/webm" },
+{".webm"  ,"video/webm" },
+{".webp"  ,"image/webp" },
+{".xhtml" ,"application/xhtml+xml" },
+{".xls"   ,"application/vnd.ms-excel" },
+{".xlsx"  ,"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+{".xml"   ,"text/xml" },
+{".zip"   ,"application/zip" },
+{".7z"    ,"application/x-7z-compressed" }
+};
+
+
+map<string,string> HttpResponse::textMimeTypes =
+{
+{".css"   ,"text/css" },
+{".htm"   ,"text/html" },
+{".html"  ,"text/html" },
+{".js"    ,"text/javascript" },
+{".json"  ,"application/json" },
+{".md"    ,"text/markdown" },
+{".php"   ,"application/x-httpd-php" },
+{".sh"    ,"application/x-sh" },
+{".svg"   ,"image/svg+xml" },
+{".txt"   ,"text/plain" },
+{".xhtml" ,"application/xhtml+xml" },
+{".xml"   ,"text/xml" },
+};
+
+
+
 
 HttpResponse::HttpResponse(string statusCode, string statusMessage, string contentLength, string contentType, string filename ){
     m_Version = "HTTP/1.1";
@@ -15,18 +106,132 @@ HttpResponse::HttpResponse(string statusCode, string statusMessage, string conte
     m_StatusMessage = statusMessage;
     m_ContentType = contentType;
     m_ContentLength = contentLength;
-    m_Filename = filename;
+    m_Filename   = filename;
+    m_ActualFile = "";
+    m_Extension  = "";
+    m_ResponseHeader = "";
+    m_ResponseHeaderLen = 0;
+    m_ActualFileSize = 0;
+    m_IsChunked = false;
     m_HttpData = m_Version + " " + statusCode + " " + statusMessage + " " + filename;
 }
 
-HttpResponse *HttpResponse::CreateSimpleResponse( string filename ){
+HttpResponse::~HttpResponse( ){
+    if( m_Fhandle.is_open() )
+        m_Fhandle.close();
+    httpdlog("DEBUG", "Deleting response object: " + to_string((unsigned long long int) this));
+}
+
+string HttpResponse::filenameCorrection(string filename ){
+    size_t pos = 0;
+    if( filename == "" || filename == "/" ){
+        filename = "\\index.html";
+    } else {
+        while ((pos = filename.find('/', pos)) != std::string::npos) {
+            filename.replace(pos, 1, "\\");
+            pos++;
+        }
+    }
+    filename = HttpResponse::pagesFolder+filename;
+    return filename;
+}
+
+string HttpResponse::filenameExtension(string filename){
+    size_t pos = filename.find_last_of('.');
+    if (pos != std::string::npos) {
+        return filename.substr(pos + 1);
+    }
+    if( filename == "/" || filename == "")
+        return "html";
+    else
+        return "";
+}
+
+string HttpResponse::getMime(string extension){
+    string mime = "";
+    try{
+        mime = mimeTypes[ "." + extension];
+    }catch ( exception e ){
+        mime = "text/plain";
+    }
+    return mime;
+}
+
+bool HttpResponse::isTextFile( string extension ){
+    string mime = "";
+    try{
+        mime = textMimeTypes[ "." + extension];
+    }catch ( exception e ){
+        mime = "";
+    }
+    if( mime == "" )
+        return false;
+    else
+        return true;
+}
+
+HttpResponse *HttpResponse::CreateSimpleResponse( string filename  ){
+    httpdlog("INFO:", "Creating simple response ");
     HttpResponse *resp = new HttpResponse("200", "OK", "", "text/plain", filename );
     resp->m_ContentLength = std::to_string( (resp->m_HttpData).length() );
     return resp;
 }
 
+HttpResponse *HttpResponse::CreateSimpleResponse( string code, string smsg ){
+    httpdlog("INFO:", "Creating simple response status code ");
+    HttpResponse *resp = new HttpResponse(code, smsg , "", "text/plain", "" );
+    resp->m_ContentLength = std::to_string( (resp->m_HttpData).length() );
+    return resp;
+}
+
+HttpResponse *HttpResponse::CreateStringResponse( string str, string mime ){
+    httpdlog("INFO:", "Creating simple response string ");
+    HttpResponse *resp = new HttpResponse("200", "OK", "", mime, "" );
+    resp->m_HttpData = str;
+    resp->m_ContentLength = std::to_string( (resp->m_HttpData).length() );
+    return resp;
+}
+
+HttpResponse *HttpResponse::CreateFileResponse( string filename ){
+    httpdlog("INFO:", "Creating simple response file ");
+    HttpResponse *resp = new HttpResponse("200", "OK", "", "text/plain" , filename );
+    resp->m_ActualFile = resp->filenameCorrection(filename );
+    httpdlog("INFO:", "Retrieving file : "+ filename );
+
+    string extension   = filenameExtension (filename );
+    resp->m_Extension  = extension;
+    string mime = getMime( extension );
+    resp->m_ContentType = mime;
+
+    //Change to XTRA
+    httpdlog("INFO:", "Accessing file : "+ resp->m_ActualFile+", "+extension+", "+resp->m_ContentType );
+
+    try{
+        resp->m_ActualFileSize = std::filesystem::file_size( resp->m_ActualFile );
+        httpdlog("INFO:", "Size of accessed file : "+ std::to_string( resp->m_ActualFileSize ) );
+    } catch(exception e ){
+        resp->m_ActualFileSize = 0;
+    }
+
+    bool isText = isTextFile("." + extension );
+    if( isText ){
+        httpdlog("INFO", "Text file is being read ");
+        resp->m_Fhandle.open( resp->m_ActualFile, ios::in|ios::binary );
+    } else {
+        httpdlog("INFO", "Binary file is being read ");
+        resp->m_Fhandle.open( resp->m_ActualFile, ios::in|ios::binary );
+    }
+
+    if( resp->m_Fhandle.is_open() ){
+        return resp;
+    } else {
+        delete resp;
+        return CreateSimpleResponse("404", "File not found");
+    }
+}
+
 void HttpResponse::BuildResponseHeader( std::map<string,string> *headers ){
-    int n = 0;
+    size_t n = 0;
 
     strcpy((char*)m_Buffer, m_Version.c_str());
     n = m_Version.length();
@@ -44,31 +249,38 @@ void HttpResponse::BuildResponseHeader( std::map<string,string> *headers ){
     strcat((char*)&m_Buffer[n], "\r\n");
     n += 2;
 
-    char *server = "Server: " HTTPDWIN_NAME "-" HTTPDWIN_VERSION;
+    const char *server = "Server: " HTTPDWIN_NAME "-" HTTPDWIN_VERSION;
 
     strcpy((char*)&m_Buffer[n], server);
     n += strlen(server);
     strcat((char*)&m_Buffer[n], "\r\n");
     n += 2;
 
-    strcpy((char*)&m_Buffer[n], "Content-Length:");
-    n += strlen( "Content-Length:" );
+    if( m_IsChunked ){
+        const string te ="Transfer-Encoding: chunked\r\n";
+        strcpy((char*)&m_Buffer[n], te.c_str());
+        n += te.length();
+    } else {
+        strcpy((char*)&m_Buffer[n], "Content-Length: ");
+        n += strlen( "Content-Length: " );
+        if (m_ActualFileSize == 0)
+            m_ContentLength = std::to_string(m_HttpData.length());
+        else
+            m_ContentLength = std::to_string(m_ActualFileSize);
+        strcpy((char*)&m_Buffer[n], m_ContentLength.c_str());
+        n += m_ContentLength.length();
+        strcat((char*)&m_Buffer[n], "\r\n");
+        n += 2;
+    }
 
-    strcpy((char*)&m_Buffer[n], m_ContentLength.c_str());
-    n += m_ContentLength.length();
-    strcat((char*)&m_Buffer[n], "\r\n");
-    n += 2;
-
-    strcpy((char*)&m_Buffer[n], "Content-Type:");
-    n += strlen( "Content-Type:" );
-
+    strcpy((char*)&m_Buffer[n], "Content-Type: ");
+    n += strlen( "Content-Type: " );
     strcpy((char*)&m_Buffer[n], m_ContentType.c_str());
     n += m_ContentType.length();
     strcat((char*)&m_Buffer[n], "\r\n");
     n += 2;
 
     if( headers ){
-        int j = 1;
         map<string,string>::iterator i = headers->begin();
         while( i != headers->end() ){
             strcpy((char*)&m_Buffer[n], i->first.c_str() );
@@ -89,4 +301,8 @@ void HttpResponse::BuildResponseHeader( std::map<string,string> *headers ){
 
 void HttpResponse::addResponseData( string & data ){
     strcpy( (char*)(&m_Buffer[m_ResponseHeaderLen]), data.c_str() );
+}
+
+size_t HttpResponse::getFileSize(){
+    return m_ActualFileSize;
 }

@@ -1,12 +1,16 @@
 //Copyright Anoop Kumar Narayanan - 2025 //httpdwin
+#define _CRT_SECURE_NO_WARNINGS
 #include <httpdlog.h>
 #include <mutex>
 using namespace std;
-int httpdloglevel = 2;
+
+#define _CRT_SECURE_NO_WARNINGS
+
+int httpdloglevel = 4;
 
 mutex logmutex;
 
-void httpdlog(char *level, string info ){
+void httpdlog(const char *level, string info ){
     logmutex.lock();
     switch(level[0]){
     case 'D':

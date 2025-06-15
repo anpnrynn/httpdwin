@@ -2,6 +2,7 @@
 #ifndef HTTPRESPONSE_H_INCLUDED
 #define HTTPRESPONSE_H_INCLUDED
 
+#include <fstream>
 #include <iostream>
 #include <map>
 
@@ -18,13 +19,40 @@ class HttpResponse:public HttpRequest{
         string m_ContentType;
         string m_HttpData;
 
-        int    m_ResponseHeaderLen;
+        size_t m_ResponseHeaderLen;
+
+        fstream m_Fhandle;
+        string  m_ActualFile;
+        string  m_Extension;
+        size_t  m_ActualFileSize;
+
+        bool    m_IsChunked;
+
 
         HttpResponse(string statusCode, string statusMessage, string contentLength, string contentType, string filename = "" );
+        ~HttpResponse();
+
         void BuildResponseHeader(  std::map<string,string> *headers  );
         void addResponseData( string & data );
+        size_t getFileSize();
+
+
+        static map<string,string> mimeTypes;
+        static map<string,string> textMimeTypes;
+
+
+        string filenameCorrection( string filename );
+
+        static string filenameExtension ( string filename );
+
+        static string pagesFolder;
+        static string getMime( string filename );
+        static bool   isTextFile(string extension );
 
         static HttpResponse *CreateSimpleResponse( string filename );
+        static HttpResponse *CreateSimpleResponse( string code, string smsg );
+        static HttpResponse *CreateStringResponse( string str, string mime );
+        static HttpResponse *CreateFileResponse  ( string filename );
 };
 
 #endif // HTTPRESPONSE_H_INCLUDED

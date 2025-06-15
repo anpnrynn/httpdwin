@@ -75,7 +75,7 @@ public :
     void assignTask (ThreadCommand *cmd );
     void assignTaskRr (ThreadCommand *cmd );
     void taskDone(int i );
-    static int  isFullHeaderPresent(char *data, int len);
+    static size_t  isFullHeaderPresent(char *data, size_t len);
     static void threadpoolFunction(int id);
 
 

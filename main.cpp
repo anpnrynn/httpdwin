@@ -20,6 +20,10 @@
 #include <httpdlog.h>
 #include <threadpool.h>
 
+#pragma comment(lib, "WS2_32.lib")
+#pragma comment(lib, "libssl.lib")
+#pragma comment(lib, "libcrypto.lib")
+
 using namespace std;
 
 typedef map<string, string> Config;
@@ -34,7 +38,9 @@ int parseConfig(){
         string line;
          while( !f.eof() ){
             std::getline( f, line);
-            int m = line.find('=', 1 );
+            if (line.length() <= 2)
+                break;
+            size_t m = line.find('=', 1 );
             string name  = line.substr(0,m );
             string value = line.substr(m+1, line.length()-m-1);
             if( value[value.length()-1] == '\r' )
@@ -58,6 +64,7 @@ int main()
 
     parseConfig();
 
+    httpdlog(" ", "Configuration read");
     SOCKET srv = 0, client = 0;
     SOCKET srv6 = 0, client6 = 0;
     SOCKET sslsrv =0, sslclient = 0;
@@ -301,9 +308,12 @@ int main()
         pollfds[3].revents = 0;
 
         int rc = 0;
-
+        int q = 0;
         if ( ( rc = WSAPoll ( pollfds, nPorts, 1 ) ) != SOCKET_ERROR ) {
-            httpdlog ( "Debug", "Looping in poll" );
+            q++;
+            if( q%10000 == 0)
+                httpdlog ( "Debug", "Looping in poll" );
+            
             if ( pollfds[0].revents & POLLIN ) {
                 socklen_t addrlen = sizeof ( sockaddr_in );
                 if ( ( client = accept ( srv, ( sockaddr * ) &clientAddr, &addrlen ) ) ) {
