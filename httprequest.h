@@ -8,6 +8,8 @@
 
 using namespace std;
 
+#include "cookie.h"
+
 const int MAXBUFFER = 1*1024*1024;
 
 class NameMimeValues {
@@ -37,13 +39,18 @@ class HttpRequest {
         string  m_Filename;
         string  m_TempPostFileName;
         string  m_TempPutFileName;
+        string  m_jsonfile;
 
+        string  m_HeaderNames[164];
         string  m_Headers[164];
         int     m_FieldCount;
         bool    m_HttpHeaderComplete;
 
+        CookieList* m_CookieList;
+
         unsigned char    m_Buffer[MAXBUFFER];
         size_t           m_Len;
+        size_t           m_cLen;
 
         HttpRequest();
         ~HttpRequest();
@@ -87,7 +94,7 @@ class HttpRequest {
         	Content_Security_Policy,
         	Content_Security_Policy_Report_Only,
         	Content_Type,
-        	Cookie,
+        	__Cookie,
         	Critical_CHExperimental,
         	Cross_Origin_Embedder_Policy,
         	Cross_Origin_Opener_Policy,
@@ -205,16 +212,17 @@ class HttpRequest {
         	X_XSS_ProtectionNon_standardDeprecated,
         };
 
+        static CookieList* readCookies(HttpRequest* req, string& line);
         static void readHttpReqLine( HttpRequest *req, string &line );
 		static void readHeaderLine ( HttpRequest *req, string &line );
 		static void readHttpHeader ( HttpRequest *req, char *buffer, int *len, int totalLen);
 		static void readHttpData   ( char *buffer, int *len, int totalLen, string *filename );
 
-               void decodeUrl();
-               void parseQuerystring();
-               void parsePostDataQueryString();
-               void processPostData( string *filename );
-               void processMultipartData ( string *filename );
+        void decodeUrl();
+        void parseQuerystring();
+        void parsePostDataQueryString();
+        void processPostData( string *filename );
+        void processMultipartData ( string *filename );
 
 
 };

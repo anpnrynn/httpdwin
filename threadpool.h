@@ -23,6 +23,7 @@
 
 #include <httpresponse.h>
 #include <httprequest.h>
+#include <cookie.h>
 
 using namespace std;
 
@@ -54,6 +55,15 @@ typedef vector<thread*> Threads;
 
 #define MAXTHREADS 256
 
+
+class ThreadInfo {
+public:
+    ThreadCommand *cmd;
+    HttpRequest   *req;
+    HttpResponse  *resp;
+};
+
+
 class ThreadPool{
 
 private:
@@ -66,19 +76,30 @@ private:
     static mutex   *threadmutexes;
     static ThreadQueue *threadQueue;
 
+    static mutex    tempFileMutex;
+    static uint64_t tempNum;
+
+    static void   getTempFileName(string &tempFileName);
+    static void   writeToTempFile(string tempFileName, ThreadCommand* cmd, HttpRequest* req, size_t dataStart, int threadId );
+
 public :
 
     ThreadPool(int );
     ~ThreadPool();
 
-    void createPool(int n );
+    //void createPool(int n );
     void assignTask (ThreadCommand *cmd );
     void assignTaskRr (ThreadCommand *cmd );
     void taskDone(int i );
     static size_t  isFullHeaderPresent(char *data, size_t len);
     static void threadpoolFunction(int id);
-
-
+    static void simpleChunkedRespone(int id, ThreadCommand* cmd, HttpResponse* resp, const char* simplestring);
+    static void sendHttpDataFinal(char* data, size_t len);
+    static void sendHttpData(char* data, size_t len);
+    static void sendHttpHeader();
+    static string generateJsonFile();
+    static void addHttpHeader(string value);
+    static void clearHttpSession();
 };
 
 

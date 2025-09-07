@@ -28,6 +28,8 @@ class HttpResponse:public HttpRequest{
 
         bool    m_IsChunked;
 
+        string  m_CollatedHeaders;
+
 
         HttpResponse(string statusCode, string statusMessage, string contentLength, string contentType, string filename = "" );
         ~HttpResponse();

@@ -116,9 +116,13 @@ HttpResponse::HttpResponse(string statusCode, string statusMessage, string conte
     m_HttpData = m_Version + " " + statusCode + " " + statusMessage + " " + filename;
 }
 
-HttpResponse::~HttpResponse( ){
-    if( m_Fhandle.is_open() )
+HttpResponse::~HttpResponse() {
+    if (m_Fhandle.is_open())
         m_Fhandle.close();
+    if (m_CookieList){
+        m_CookieList->clear();
+        m_CookieList = 0;
+    }
     httpdlog("DEBUG", "Deleting response object: " + to_string((unsigned long long int) this));
 }
 
@@ -225,8 +229,11 @@ HttpResponse *HttpResponse::CreateFileResponse( string filename ){
     if( resp->m_Fhandle.is_open() ){
         return resp;
     } else {
-        delete resp;
-        return CreateSimpleResponse("404", "File not found");
+        //delete resp;
+        //return CreateSimpleResponse("404", "File not found");
+		resp->m_StatusCode = "404"; 
+		resp->m_StatusMessage = "File not found";
+        return resp;
     }
 }
 
@@ -260,6 +267,7 @@ void HttpResponse::BuildResponseHeader( std::map<string,string> *headers ){
         const string te ="Transfer-Encoding: chunked\r\n";
         strcpy((char*)&m_Buffer[n], te.c_str());
         n += te.length();
+        //m_Buffer[0] = 0;
     } else {
         strcpy((char*)&m_Buffer[n], "Content-Length: ");
         n += strlen( "Content-Length: " );
@@ -293,10 +301,25 @@ void HttpResponse::BuildResponseHeader( std::map<string,string> *headers ){
         }
     }
 
+    if (m_CookieList) {
+		CookieList::iterator i = m_CookieList->begin();
+        while (i != m_CookieList->end()) {
+            string cookieHeader = "Set-Cookie: " + i->toString() + "\r\n";
+            strcpy((char*)&m_Buffer[n], cookieHeader.c_str());
+            n += cookieHeader.length();
+            ++i;
+        }
+    }
+
+    if (m_CollatedHeaders.size() > 0) {
+        strcpy((char*)&m_Buffer[n], m_CollatedHeaders.c_str());
+        n += m_CollatedHeaders.length();
+    }
+
     strcat((char*)&m_Buffer[n], "\r\n");
     n += 2;
-
     m_ResponseHeaderLen = n;
+
 }
 
 void HttpResponse::addResponseData( string & data ){

@@ -1,13 +1,23 @@
 //Copyright Anoop Kumar Narayanan - 2025 //httpdwin
 #define _CRT_SECURE_NO_WARNINGS
+#include <Python.h>
 #include <threadpool.h>
 #include <httpdlog.h>
+#include <chunkedencoding.h>
 
-
+#include <fstream>
+using namespace std;
 
 mutex *ThreadPool::threadmutexes;
 ThreadQueue * ThreadPool::threadQueue;
+mutex  ThreadPool::tempFileMutex;
+uint64_t ThreadPool::tempNum = 0;
 
+
+
+thread_local ThreadInfo info;
+
+CookieManager cookieManager;
 
 ThreadCommand::ThreadCommand( ){
     task = STBY;
@@ -18,6 +28,7 @@ ThreadCommand::ThreadCommand( ){
     int port = -1;
     ipAddress ="";
     ssl = 0;
+    port = 8080;
 }
 
 ThreadCommand::ThreadCommand( Task _task, SOCKET _socket, bool _isSsl, bool _isSslAccepted, bool _ipv6, int _p, string _address, SSL* _ssl){
@@ -119,7 +130,7 @@ void ThreadPool::assignTaskRr(ThreadCommand *cmd){
 
     if( leastBusyThread < nThreads){
         threadmutexes[leastBusyThread].lock();
-        httpdlog("INFO", std::to_string(leastBusyThread) + ": Thread assigned the task" );
+        httpdlog("INFO", std::to_string(leastBusyThread) + ": Thread assigned the task \n" );
         threadQueue[leastBusyThread].push(cmd);
         threadTaskCount[leastBusyThread]++;
         threadmutexes[leastBusyThread].unlock();
@@ -150,6 +161,354 @@ size_t ThreadPool::isFullHeaderPresent( char *data, size_t len ){
         i++;
     }
     return 0;
+}
+
+void ThreadPool::getTempFileName(string &tempFileName) {
+    tempFileMutex.lock();
+    uint64_t tNum = tempNum;
+    tempNum++;
+    tempFileMutex.unlock();
+    tempFileName = "C:\\HttpdWin\\Temp\\PostFileData-" + to_string(tNum) + ".post";
+    //tempFileName = "PostFileData-" + to_string(tNum) + ".post";
+}
+
+
+void ThreadPool::writeToTempFile(string tempFileName, ThreadCommand *cmd, HttpRequest *req, size_t dataStart, int id) {
+    ofstream f(tempFileName, ios::trunc | ios::binary);
+    req->m_TempPostFileName = tempFileName;
+    req->m_TempPutFileName = tempFileName;
+    //f.open(tempFileName, ios::out | ios::trunc | ios::binary );
+    int count = 0;
+    int rc = 0;
+    size_t nBytes = 0;
+    if (f.is_open()) {
+        httpdlog("INFO", "Writing to temporary file: "+ tempFileName + ", initial bytes: "+ std::to_string(req->m_Len - dataStart));
+        size_t totalDataRead = 0;
+        if (req->m_Len > dataStart) {
+            f.write( (const char *)&(req->m_Buffer[dataStart]), req->m_Len - dataStart);
+            if (f.fail()) {
+                httpdlog("ERROR", "Failed to write data which came with the header to temporary file: " + tempFileName);
+            }
+            totalDataRead = req->m_Len - dataStart;
+        }
+        
+        while ( totalDataRead < req->m_cLen ) {
+            //httpdlog("DEBUG", "Looping : Total Read:  " + std::to_string(totalDataRead) );
+            rc = 0;
+            nBytes = 0;
+            if( cmd->isSsl )
+                rc = SSL_read_ex(cmd->ssl, req->m_Buffer, MAXBUFFER, &nBytes);
+            else
+                nBytes = recv(cmd->fd, (char*)req->m_Buffer, MAXBUFFER, 0);
+
+            if (nBytes > 0 && nBytes <= MAXBUFFER ) {
+                totalDataRead += nBytes;
+                count = 0;
+				//httpdlog("DEBUG", "Received Bytes :" + std::to_string(nBytes) + " rc = " + std::to_string(rc)); 
+                f.write((const char *)req->m_Buffer, nBytes);
+                if (f.fail()) {
+                    httpdlog("ERROR", "Failed to write to temporary file: " + tempFileName);
+                    break;
+				}
+            }
+            else if (nBytes == 0 || nBytes > MAXBUFFER ) {
+                if (cmd->isSsl) {
+                    if (rc == 0) {
+                        if (count++ > 50) {
+                            httpdlog("INFO", std::to_string(id) + ": SSL socket received  invalid amount of bytes 50 times, breaking out of loop");
+                            break;
+                        }
+                        httpdlog("INFO", std::to_string(id) + ": SSL socket received invalid Bytes : " + std::to_string(nBytes));
+                        std::this_thread::sleep_for(std::chrono::microseconds(10));
+                    }
+                    else {
+                        httpdlog("INFO", std::to_string(id) + ": SSL socket received negative rc : " + std::to_string(nBytes)+ ",  RC = " + to_string(rc));
+                        break;
+                    }
+                }
+                else {
+                    if (count++ > 50) {
+                        httpdlog("INFO", std::to_string(id) + ": Normal socket received invalid amount of bytes 50 times, breaking out of loop");
+                        break;
+                    }
+                    httpdlog("INFO", std::to_string(id) + ": Normal socket received invalid Bytes : " + std::to_string(nBytes));
+                    std::this_thread::sleep_for(std::chrono::microseconds(10));
+                }
+                
+            }
+        }
+        f.close();
+    }
+    else {
+        httpdlog("INFO", "Unable to open temporary file for writing post data :" + tempFileName );
+        req->m_TempPostFileName = "";
+        req->m_TempPutFileName = "";
+    }
+}
+
+
+void ThreadPool::sendHttpHeader() {
+    info.resp->m_IsChunked = true;
+    int i = 0;
+    //httpdlog("INFO", std::to_string(id) + ": Building response header ce : " + extension);
+    info.resp->BuildResponseHeader(0);
+    info.resp->m_Buffer[info.resp->m_ResponseHeaderLen] = 0;
+    httpdlog("    ", " ");
+    httpdlog("    ", "Response Header: ");
+    httpdlog("    ", (char*)info.resp->m_Buffer);
+    httpdlog("    ", " ");
+
+    int partial = 0, n = 0;
+
+    do {
+        if (info.cmd->isSsl) {
+            n = SSL_write(info.cmd->ssl, (char*)&(info.resp->m_Buffer[partial]), info.resp->m_ResponseHeaderLen - partial);
+            if (n > 0) {
+                partial += n;
+            }
+            else if (n == -1) {
+                //break;
+            }
+            else {
+            }
+        }
+        else {
+            n = send(info.cmd->fd, (char*)&(info.resp->m_Buffer[partial]), info.resp->m_ResponseHeaderLen - partial, 0);
+            if (n > 0) {
+                partial += n;
+            }
+            else if (n == -1) {
+                //break;
+            }
+            else {
+            }
+        }
+    } while (partial < info.resp->m_ResponseHeaderLen);
+}
+
+
+void ThreadPool::sendHttpData(char *data, size_t len) {
+    ChunkedEncoding* ce = new ChunkedEncoding();
+    ce->setData(data, len, false);
+    int i=0, partial = 0, n = 0;
+    do {
+        if (info.cmd->isSsl) {
+            n = SSL_write(info.cmd->ssl, (char*)&(ce->data[partial]), ce->size - partial);
+            if (n > 0) {
+                partial += n;
+            }
+            else if (n == -1) {
+                break;
+            }
+            else {
+            }
+        }
+        else {
+
+            n = send(info.cmd->fd, (char*)&(ce->data[partial]), ce->size - partial, 0);
+            if (n > 0) {
+                partial += n;
+            }
+            else if (n == -1) {
+                //break;
+            }
+            else {
+            }
+        }
+    } while (partial < ce->size);
+    delete ce;
+    ce = 0;
+}
+
+void ThreadPool::sendHttpDataFinal(char* data, size_t len) {
+    ChunkedEncoding* ce = new ChunkedEncoding();
+    ce->setData(data, len, true);
+    int i = 0, partial = 0, n = 0;
+    do {
+        if (info.cmd->isSsl) {
+            n = SSL_write(info.cmd->ssl, (char*)&(ce->data[partial]), ce->size - partial);
+            if (n > 0) {
+                partial += n;
+            }
+            else if (n == -1) {
+                break;
+            }
+            else {
+            }
+        }
+        else {
+
+            n = send(info.cmd->fd, (char*)&(ce->data[partial]), ce->size - partial, 0);
+            if (n > 0) {
+                partial += n;
+            }
+            else if (n == -1) {
+                //break;
+            }
+            else {
+            }
+        }
+    } while (partial < ce->size);
+    delete ce;
+    ce = 0;
+}
+
+void ThreadPool::clearHttpSession() {
+    string str = info.resp->m_CookieList->size() > 0 ? info.resp->m_CookieList->front().m_gname : "";
+    cookieManager.clear(str);
+    info.req->m_CookieList = 0;
+    if (info.resp->m_CookieList) {
+        info.resp->m_CookieList->clear();
+        delete info.resp->m_CookieList;
+        info.resp->m_CookieList = 0;
+    }
+}
+
+void ThreadPool::simpleChunkedRespone(int id , ThreadCommand *cmd, HttpResponse *resp, const char *simplestring) {
+
+    ChunkedEncoding* ce = new ChunkedEncoding();
+    resp->m_IsChunked = true;
+    int i = 0;
+    //httpdlog("INFO", std::to_string(id) + ": Building response header ce : " + extension);
+    resp->BuildResponseHeader(0);
+
+    httpdlog("INFO", std::to_string(id) + ": " + (char*)(resp->m_Buffer));
+    httpdlog("INFO", std::to_string(id) + ": Built response header ce ");
+    resp->m_Buffer[resp->m_ResponseHeaderLen] = 0;
+    httpdlog("    ", " ");
+    httpdlog("    ", "Response Header: ");
+    httpdlog("    ", (char*)resp->m_Buffer);
+
+    int partial = 0, n = 0;
+
+    do {
+        if (cmd->isSsl) {
+            n = SSL_write(cmd->ssl, (char*)&(resp->m_Buffer[partial]), resp->m_ResponseHeaderLen - partial);
+            if (n > 0) {
+                partial += n;
+            }
+            else if (n == -1) {
+                //break;
+            }
+            else {
+            }
+        }
+        else {
+            n = send(cmd->fd, (char*)&(resp->m_Buffer[partial]), resp->m_ResponseHeaderLen - partial, 0);
+            if (n > 0) {
+                partial += n;
+            }
+            else if (n == -1) {
+                //break;
+            }
+            else {
+            }
+        }
+    } while (partial < resp->m_ResponseHeaderLen);
+
+    //httpdlog("INFO", std::to_string(id) + ": " + (char*)(resp->m_Buffer));
+
+    i = 0;
+    while (i <= 10000) {
+        partial = 0, n = 0;
+
+        if (i < 10000) {
+            snprintf((char*)(resp->m_Buffer), MAXBUFFER, "%s - This is chunked transfer encoding number = %d  from thread = %d:", simplestring, i, id);
+            const string base64 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz+/";
+            int j = i % 64;
+            strcat((char*)(resp->m_Buffer), base64.substr(0, j).c_str());
+            strcat((char*)(resp->m_Buffer), "\r\n");
+            ce->setData((char*)(resp->m_Buffer), strlen((char*)resp->m_Buffer), false);
+        }
+        else {
+            resp->m_Buffer[0] = 0;
+            ce->setData((char*)(resp->m_Buffer), 0, true);
+        }
+        do {
+
+            if (cmd->isSsl) {
+                n = SSL_write(cmd->ssl, (char*)&(ce->data[partial]), ce->size - partial);
+                if (n > 0) {
+                    partial += n;
+                }
+                else if (n == -1) {
+                    break;
+                }
+                else {
+                }
+            }
+            else {
+
+                n = send(cmd->fd, (char*)&(ce->data[partial]), ce->size - partial, 0);
+                if (n > 0) {
+                    partial += n;
+                }
+                else if (n == -1) {
+                    //break;
+                }
+                else {
+                }
+            }
+        } while (partial < ce->size);
+        i++;
+    }
+    delete ce;
+    ce = 0;
+    delete resp;
+    resp = 0;
+
+}
+
+string ThreadPool::generateJsonFile() {
+    ofstream f;
+    string sessionid = info.resp->m_CookieList->size() > 0 ? info.resp->m_CookieList->front().m_gname : "";
+    string jsonfile = "C:\\HttpdWin\\Temp\\_____" + sessionid.substr(0,32) +"_____" + ".json";
+    httpdlog("DEBUG", "Opening input file for script " + jsonfile + ", " + sessionid);
+    f.open(jsonfile, ios::out | ios::trunc);
+    if (f.is_open()) {
+        f << "{ \n\t\"headers\" : { "<<endl;
+        int i = 0;
+        int n = info.req->m_Headers->size();
+        while (i < n ) {
+            if( i == n-1 )
+                f << "\t\t\"" << info.req->m_HeaderNames[i] << "\" : \"" << info.req->m_Headers[i] << "\"" << endl;
+            else
+                f << "\t\t\"" << info.req->m_HeaderNames[i] << "\" : \"" << info.req->m_Headers[i] << "\", " << endl;
+            i++;
+        }
+        f << "\t}," << endl << "\n\t\"cookies\" : {"<<endl;
+
+        i = 0;
+        n = info.resp->m_CookieList->size();
+        CookieList::iterator it  = info.resp->m_CookieList->begin();
+        while (it != info.resp->m_CookieList->end() ) {
+            if (i == n - 1)
+                f << "\t\t\"" << it->m_name << "\" : \"" << it->m_value << "\"" << endl;
+            else
+                f << "\t\t\"" << it->m_name << "\" : \"" << it->m_value << "\", " << endl;
+            it++;
+            i++;
+        }
+        f << "\t}," << endl << "\n\t\"url\" : \"" <<info.req->m_EncodedUrl<<"\"," << endl;
+        f << "\t\"jsonfile\" : \"" << jsonfile << "\"," << endl;
+        f << "\t\"method\" : \"" << info.req->m_Method << "\"," << endl;
+        f << "\t\"version\" : \"" << info.req->m_Version << "\"," << endl;
+        f << "\t\"postfile\" : \"" << info.req->m_TempPostFileName << "\"," << endl;
+        f << "\t\"putfile\" : \"" << info.req->m_TempPutFileName << "\"," << endl;
+        f << "\t\"requestfile\" : \"" << info.req->m_RequestFile << "\"," << endl;
+        f << "\t\"length\" : \"" << info.req->m_Len << "\"," << endl;
+        f << "}" << endl;
+        f.flush();
+        f.close();
+    }
+    else {
+        httpdlog("ERROR", "Unable to open file to write json content to : " + jsonfile);
+    }
+    return jsonfile;
+}
+
+void ThreadPool::addHttpHeader(string value) {
+    info.resp->m_CollatedHeaders += value + "\r\n";
 }
 
 void ThreadPool::threadpoolFunction(int id ){
@@ -193,6 +552,7 @@ void ThreadPool::threadpoolFunction(int id ){
             std::this_thread::sleep_for(std::chrono::milliseconds(1) );
             httpdlog("INFO", std::to_string(id ) + ": Working " + (cmd->isSsl?"SSL":"Non-SSL") + (cmd->isIpv6?" - IPv6":" - IPv4")  );
             if( cmd->isSsl ){
+				//SSL Request/Read Part
                 if(!cmd->isSslAccepted)
                 {
                     httpdlog("INFO",std::to_string(id ) + ": SSL connection not accepted" + (cmd->isIpv6?" - IPv6 ":" - IPv4 ") + std::to_string( (unsigned long long int)cmd->ssl));
@@ -210,8 +570,8 @@ void ThreadPool::threadpoolFunction(int id ){
                 int count = 0;
                 while( true ){
                     rc = SSL_read_ex ( cmd->ssl, req->m_Buffer, MAXBUFFER - req->m_Len, &nBytes );
-                    //nBytes = recv ( cmd->fd, (char *)req->m_Buffer, MAXBUFFER-req->m_Len, 0 );
-                    if( nBytes > 0 ){
+                    if( nBytes > 0 && nBytes <= MAXBUFFER - req->m_Len){
+                        count = 0;
                         dataStartPresent   = 0;
                         dataStartPresent   = ThreadPool::isFullHeaderPresent((char*)&(req->m_Buffer[req->m_Len]), nBytes );
                         req->m_Len += nBytes;
@@ -221,10 +581,10 @@ void ThreadPool::threadpoolFunction(int id ){
                             dataStart += dataStartPresent;
                             break;
                         }
-                    } else if ( nBytes <= 0 ){
+                    } else if ( nBytes == 0 || nBytes > MAXBUFFER ){
                         if( rc == 0 ){
-                            if (count++ > 500) {
-                                httpdlog("INFO", std::to_string(id) + ": SSL socket received 0 data 500 times, breaking out of loop");
+                            if (count++ > 50) {
+                                httpdlog("INFO", std::to_string(id) + ": SSL socket received 0 data 50 times, breaking out of loop");
                                 delete cmd;
                                 cmd = 0;
                                 break;
@@ -241,24 +601,33 @@ void ThreadPool::threadpoolFunction(int id ){
                 }
 
                 if (!cmd) {
+                    httpdlog("INFO", std::to_string(id) + ": Socket Error, Not handling request ");
                     delete req;
                     req = 0;
                     continue;
                 }
 
                 int hLen = 0;
+                httpdlog("    ", "==============================================================");
                 HttpRequest::readHttpHeader ( req, (char *)(req->m_Buffer), &hLen, req->m_Len );
                 httpdlog("INFO", std::to_string(id ) + ": Data starts from : " + std::to_string(dataStart) + " Total Read: " + std::to_string(req->m_Len) );
-
+                
                 bool hasDataBeenRead = false;
-                if( req->m_Len > dataStart ){
+                if( req->m_Len > dataStart || req->m_cLen > 0 ){
                     //Write to file, possible post data or multipart post data or put data
+                    httpdlog("INFO", "Post or Put Data present ");
+                    string tfn;
+                    getTempFileName(tfn);
+                    writeToTempFile(tfn, cmd, req, dataStart, id);
                 }
                 hasDataBeenRead = true;
+
+                //SSL Response Part
 
                 if( req->m_Len == dataStart || hasDataBeenRead ){
 
                     HttpResponse* resp = HttpResponse::CreateFileResponse(req->m_RequestFile);
+                    string extension = resp->m_Extension;
                     if (resp->m_Fhandle.is_open()) {
 
                         resp->BuildResponseHeader(0);
@@ -274,12 +643,13 @@ void ThreadPool::threadpoolFunction(int id ){
                         long long int n = 0;
 
                         resp->m_Buffer[resp->m_ResponseHeaderLen] = 0;
-                        httpdlog("INFO", (char*)resp->m_Buffer);
+                        httpdlog("    ", " ");
+                        httpdlog("    ", "Response Header: ");
+                        httpdlog("    ", (char*)resp->m_Buffer);
                         while (totalBytes < nHttpDataBytes) {
 
                             partial = 0;
                             n = 0;
-
                             while (partial < bufferBytes) {
                                 //n = send(cmd->fd, (char*)&(resp->m_Buffer[partial]), bufferBytes - partial, 0);
                                 n = SSL_write(cmd->ssl, (char*)&(resp->m_Buffer[partial]), bufferBytes - partial);
@@ -291,50 +661,173 @@ void ThreadPool::threadpoolFunction(int id ){
                                 else {
                                 }
                             }
-                            httpdlog("DEBUG", "Sent Bytes :" + to_string(partial));
+                            //httpdlog("DEBUG", "Sent Bytes :" + to_string(partial));
                             totalBytes += partial;
-                            httpdlog("DEBUG ", "Total:  " + to_string(totalBytes));
+                            //httpdlog("DEBUG ", "Total:  " + to_string(totalBytes));
                             if (resp->m_Fhandle.eof())
                                 break;
                             offset = resp->m_Fhandle.tellg();
                             if (offset == -1)
                                 break;
-                            httpdlog("DEBUG ", "Offset: " + to_string(offset));
+                            //httpdlog("DEBUG ", "Offset: " + to_string(offset));
                             if (resp->m_Fhandle.read((char*)(resp->m_Buffer), MAXBUFFER))
                                 bufferBytes = resp->m_Fhandle.tellg() - offset;
                             else
                                 bufferBytes = resp->m_ActualFileSize - totalBytes + resp->m_ResponseHeaderLen;
-                            httpdlog("DEBUG ", "---------------------------------------");
+                            //httpdlog("DEBUG ", "---------------------------------------");
                         }
                         httpdlog("DEBUG ", "Total bytes sent including header: " + to_string(totalBytes));
                         delete resp;
                     } else {
-                        //httpdlog("INFO",  std::to_string(id )+": " + (char *)resp->m_Buffer );
+						//This is where code for scripting languages like PHP, Python, etc. will come in
                         delete resp; resp = 0;
                         HttpResponse* resp = HttpResponse::CreateSimpleResponse(req->m_RequestFile);
-                        httpdlog("INFO", std::to_string(id) + ": Building response header ");
-                        resp->BuildResponseHeader(0);
-                        httpdlog("INFO", std::to_string(id) + ": Built response header ");
-                        resp->addResponseData(resp->m_HttpData);
-                        httpdlog("INFO", std::to_string(id) + ": Adding data " +(char*)(resp->m_Buffer  ) );
-                        size_t nHttpDataBytes = strlen((char*)resp->m_Buffer);
 
-                        int partial = 0, n = 0;
-                        do {
-                            n = SSL_write(cmd->ssl, (char*)&(resp->m_Buffer[partial]), nHttpDataBytes - partial);
-                            if (n > 0) {
-                                partial += n;
-                            }
-                            else if (n == -1) {
-                                break;
+                        if (extension == "script" || extension == "" ) {
+                            Cookie* c = 0;
+                            if (req->m_CookieList == 0 || (req->m_CookieList != 0 && req->m_CookieList->size() == 0)) {
+                                c = new Cookie("", "", "");
+                                CookieList* cl = new CookieList();
+                                bool status = false;
+
+                                do {
+                                    c->generateSessionId();
+                                    //httpdlog("DEBUG", "Cookie not present, creating new : " + c->m_gname + ", " + c->m_value);
+                                    if (resp->m_CookieList == 0)
+                                        resp->m_CookieList = new CookieList();
+                                    resp->m_CookieList->push_back(*c);
+                                    
+                                    for (auto it1 = resp->m_CookieList->begin(); it1 != resp->m_CookieList->end(); it1++) {
+                                        cl->push_back(*it1);
+                                    }
+                                    status = cookieManager.add(c->m_gname, cl);
+                                    cookieManager.print();
+                                    if( status == false) {
+                                        //httpdlog("DEBUG", "Cookie present for : " + c->m_gname +", " + c->m_value);
+                                        resp->m_CookieList->clear();
+                                        cl->clear();
+									}
+							    } while (status == false);  
                             }
                             else {
+                                if (resp->m_CookieList == 0)
+                                    resp->m_CookieList = new CookieList();
+								auto it = req->m_CookieList->begin();
+                                if (it != req->m_CookieList->end()) {
+                                    CookieList* cl = 0;
+                                    cl = cookieManager.get((*it).m_gname);
+                                    cookieManager.print();
+
+                                    if (cl != 0) {
+                                        httpdlog("DEBUG", "CookieMap was present for : " + (*it).m_gname);
+                                        for (auto it1 = cl->begin(); it1 != cl->end(); it1++) {
+                                            resp->m_CookieList->push_back(*it1);
+                                        }
+                                    }
+                                    else {
+                                        httpdlog("DEBUG", "CookieMap was not present for : " + (*it).m_gname +", " + (*it).m_value);
+                                        Cookie* c = new Cookie("", "", "");
+                                        cl = new CookieList();
+                                        bool status = false;
+
+                                        do {
+                                            c->generateSessionId();
+                                            //httpdlog("DEBUG", "Cookie not present, creating new : " + c->m_gname +", "+c->m_value);
+                                            if (resp->m_CookieList == 0)
+                                                resp->m_CookieList = new CookieList();
+                                            resp->m_CookieList->push_back(*c);
+
+                                            for (auto it1 = resp->m_CookieList->begin(); it1 != resp->m_CookieList->end(); it1++) {
+                                                cl->push_back(*it1);
+                                            }
+                                            status = cookieManager.add(c->m_gname, cl);
+                                            //cookieManager.print();
+
+                                            if (status == false) {
+                                                //httpdlog("DEBUG", "Cookie present for : " + c->m_gname +", " + c->m_value);
+                                                resp->m_CookieList->clear();
+                                                cl->clear();
+                                            }
+                                        } while (status == false);
+                                    }
+                                }
+                                else {
+									httpdlog("ERROR", "Cookie list iterator error");
+                                }
                             }
-                        } while (partial < nHttpDataBytes);
+#if 0
+                            simpleChunkedRespone(id, cmd, resp, " From SSL response sourcecode ");
+#endif
+
+                            PyGILState_STATE gstate = PyGILState_Ensure();
+                            try {
+                                //PyRun_SimpleString("print('Hello from thread!')");
+                                string scriptFile = "C:\\HttpdWin\\Pages\\"+req->m_RequestFile.substr(1, req->m_RequestFile.length() - 8);
+                                httpdlog("    ", "Executing script from location : " + scriptFile );
+                                info.req  = req;
+                                info.resp = resp;
+                                info.cmd  = cmd;
+
+                                FILE* fp = fopen(scriptFile.c_str(), "r");
+                                if (fp) {
+                                    PyObject* main_module = PyImport_AddModule("__main__");
+                                    PyObject* main_dict = PyModule_GetDict(main_module);
+                                    req->m_jsonfile = resp->m_CookieList->size() > 0 ? resp->m_CookieList->front().m_gname : "";
+                                    string jsonfile = generateJsonFile();
+                                    PyObject* py_value = PyUnicode_FromString(req->m_jsonfile.c_str());
+                                    PyObject* py_value2 = PyUnicode_FromString(jsonfile.c_str());
+                                    PyDict_SetItemString(main_dict, "sessionid", py_value);
+                                    PyDict_SetItemString(main_dict, "input", py_value2);
+
+                                    PyRun_SimpleFile(fp, scriptFile.c_str());
+
+                                    Py_DECREF(py_value);
+                                    Py_DECREF(py_value2);
+                                }
+                                if (fp)
+                                    fclose(fp);
+
+                                info.req  = 0;
+                                info.resp = 0;
+                                info.cmd  = 0;
+                            }
+                            catch (exception msg) {
+
+                            }
+                            PyGILState_Release(gstate);
+                            delete resp;
+                            resp = 0;
+                        }
+                        else {
+                            //httpdlog("INFO",  std::to_string(id )+": " + (char *)resp->m_Buffer );
+                            
+                            HttpResponse* resp = HttpResponse::CreateSimpleResponse(req->m_RequestFile);
+                            httpdlog("INFO", std::to_string(id) + ": Building response header ");
+                            resp->BuildResponseHeader(0);
+                            httpdlog("INFO", std::to_string(id) + ": Built response header ");
+                            resp->addResponseData(resp->m_HttpData);
+                            httpdlog("INFO", std::to_string(id) + ": Adding data " + (char*)(resp->m_Buffer));
+                            size_t nHttpDataBytes = strlen((char*)resp->m_Buffer);
+                            httpdlog("    ", " ");
+                            httpdlog("    ", "Response Header: ");
+                            httpdlog("    ", (char*)resp->m_Buffer);
+                            int partial = 0, n = 0;
+                            do {
+                                n = SSL_write(cmd->ssl, (char*)&(resp->m_Buffer[partial]), nHttpDataBytes - partial);
+                                if (n > 0) {
+                                    partial += n;
+                                }
+                                else if (n == -1) {
+                                    break;
+                                }
+                                else {
+                                }
+                            } while (partial < nHttpDataBytes);
+                        }
 
                         delete resp; resp = 0;
                     }
-                    httpdlog("DEBUG", std::to_string(id) + ": Deleting work object " + std::to_string((unsigned long long int)cmd));
+                    httpdlog("DEBUG", std::to_string(id) + "(Thread ID) : Deleting work object " + std::to_string((unsigned long long int)cmd));
                     closesocket(cmd->fd);
                     cmd->fd = 0;
                     delete cmd;
@@ -345,7 +838,7 @@ void ThreadPool::threadpoolFunction(int id ){
                 }
             }
             else {
-                httpdlog("INFO", std::to_string(id) + ": Working " + (cmd->isSsl ? "SSL" : "Non-SSL") + (cmd->isIpv6 ? " - IPv6" : " - IPv4"));
+                httpdlog("INFO", std::to_string(id) + ": Working " + (cmd->isSsl ? "SSL" : "Non-SSL") + (cmd->isIpv6 ? " - IPv6" : " - IPv4") );
                 HttpRequest* req = new HttpRequest();
                 int dataStartPresent = 0;
                 int dataStart = 0;
@@ -354,7 +847,8 @@ void ThreadPool::threadpoolFunction(int id ){
                 int count = 0;
                 while (true) {
                     nBytes = recv(cmd->fd, (char*)req->m_Buffer, MAXBUFFER - req->m_Len, 0);
-                    if (nBytes > 0) {
+                    if (nBytes > 0 && nBytes <= MAXBUFFER - req->m_Len ) {
+                        count = 0;
                         dataStartPresent = 0;
                         dataStartPresent = ThreadPool::isFullHeaderPresent((char*)&(req->m_Buffer[req->m_Len]), nBytes);
                         req->m_Len += nBytes;
@@ -373,8 +867,8 @@ void ThreadPool::threadpoolFunction(int id ){
                         break;
                     }
                     else {
-                        if (count++ > 500) {
-                            httpdlog("INFO", std::to_string(id) + ": socket received 0 data 500 times, breaking out of loop");
+                        if (count++ > 50) {
+                            httpdlog("INFO", std::to_string(id) + ": socket received 0 data 50 times, breaking out of loop");
                             delete cmd;
                             cmd = 0;
                             break;
@@ -385,24 +879,35 @@ void ThreadPool::threadpoolFunction(int id ){
                 }
 
                 if (!cmd) {
+                    httpdlog("INFO", std::to_string(id) + ": Socket Error, Not handling request ");
                     delete req;
                     req = 0;
                     continue;
                 }
 
                 int hLen = 0;
+                httpdlog("    ", "==============================================================");
                 HttpRequest::readHttpHeader(req, (char*)(req->m_Buffer), &hLen, req->m_Len);
                 httpdlog("INFO", std::to_string(id) + ": Data starts from : " + std::to_string(dataStart) + " Total Read: " + std::to_string(req->m_Len));
-
                 bool hasDataBeenRead = false;
-                if (req->m_Len > dataStart) {
+
+                if (req->m_Len > dataStart || req->m_cLen > 0) {
                     //Write to file, possible post data or multipart post data or put data
+                    httpdlog("INFO", "Post or Put Data present ");
+                    string tfn;
+                    getTempFileName(tfn);
+                    writeToTempFile(tfn, cmd, req, dataStart, id);
                 }
+
                 hasDataBeenRead = true;
+
+
+				///Non SSL Response Part
 
                 if (req->m_Len == dataStart || hasDataBeenRead) {
                     //httpdlog("INFO", std::to_string(id ) + ": "+ req->m_RequestFile );
                     HttpResponse* resp = HttpResponse::CreateFileResponse(req->m_RequestFile);
+                    string extension = resp->m_Extension;
                     if (resp->m_Fhandle.is_open()) {
 
                         resp->BuildResponseHeader(0);
@@ -418,7 +923,9 @@ void ThreadPool::threadpoolFunction(int id ){
                         long long int n = 0;
 
                         resp->m_Buffer[resp->m_ResponseHeaderLen] = 0;
-                        httpdlog("INFO", (char*)resp->m_Buffer);
+                        httpdlog("    ", " ");
+                        httpdlog("    ", "Response Header: ");
+                        httpdlog("    ", (char*)resp->m_Buffer);
                         while (totalBytes < nHttpDataBytes) {
 
                             partial = 0;
@@ -434,54 +941,182 @@ void ThreadPool::threadpoolFunction(int id ){
                                 else {
                                 }
                             }
-                            httpdlog("DEBUG", "Sent Bytes :" + to_string(partial));
+                            //httpdlog("DEBUG", "Sent Bytes :" + to_string(partial));
                             totalBytes += partial;
-                            httpdlog("DEBUG ", "Total:  " + to_string(totalBytes));
+                            //httpdlog("DEBUG ", "Total:  " + to_string(totalBytes));
                             if (resp->m_Fhandle.eof())
                                 break;
                             offset = resp->m_Fhandle.tellg();
                             if (offset == -1)
                                 break;
-                            httpdlog("DEBUG ", "Offset: " + to_string(offset));
+                            //httpdlog("DEBUG ", "Offset: " + to_string(offset));
                             if (resp->m_Fhandle.read((char*)(resp->m_Buffer), MAXBUFFER))
                                 bufferBytes = resp->m_Fhandle.tellg() - offset;
                             else
                                 bufferBytes = resp->m_ActualFileSize - totalBytes + resp->m_ResponseHeaderLen;
-                            httpdlog("DEBUG ", "---------------------------------------");
+                            //httpdlog("DEBUG ", "---------------------------------------");
                         }
                         httpdlog("DEBUG ", "Total bytes sent including header: " + to_string(totalBytes));
                         delete resp;
                     }
                     else {
-
+                        //This is where code for scripting languages like PHP, Python, etc. will come in
                         delete resp; resp = 0;
                         //httpdlog("INFO",  std::to_string(id )+": " + (char *)resp->m_Buffer );
-                        HttpResponse* resp = HttpResponse::CreateSimpleResponse(req->m_RequestFile);
-                        httpdlog("INFO", std::to_string(id) + ": Building response header ");
-                        resp->BuildResponseHeader(0);
-                        httpdlog("INFO", std::to_string(id) + ": Built response header ");
-                        resp->addResponseData(resp->m_HttpData);
-                        httpdlog("INFO", std::to_string(id) + ": Adding data ");
-                        size_t nHttpDataBytes = strlen((char*)resp->m_Buffer);
 
-                        int partial = 0, n = 0;
-                        do {
-                            n = send(cmd->fd, (char*)&(resp->m_Buffer[partial]), nHttpDataBytes - partial, 0);
-                            if (n > 0) {
-                                partial += n;
-                            }
-                            else if (n == -1) {
-                                break;
+                        HttpResponse* resp = HttpResponse::CreateSimpleResponse(req->m_RequestFile);
+                        if (extension == "script" ||  extension == "") {
+
+
+                            Cookie* c = 0;
+                            if (req->m_CookieList == 0 || (req->m_CookieList != 0 && req->m_CookieList->size() == 0)) {
+                                c = new Cookie("", "", "");
+                                CookieList* cl = new CookieList();
+                                bool status = false;
+
+                                do {
+                                    c->generateSessionId();
+                                    //httpdlog("DEBUG", "Cookie not present, creating new : " + c->m_gname + ", " + c->m_value);
+                                    if (resp->m_CookieList == 0)
+                                        resp->m_CookieList = new CookieList();
+                                    resp->m_CookieList->push_back(*c);
+
+                                    for (auto it1 = resp->m_CookieList->begin(); it1 != resp->m_CookieList->end(); it1++) {
+                                        cl->push_back(*it1);
+                                    }
+                                    status = cookieManager.add(c->m_gname, cl);
+                                    cookieManager.print();
+                                    if (status == false) {
+                                        //httpdlog("DEBUG", "Cookie present for : " + c->m_gname +", " + c->m_value);
+                                        resp->m_CookieList->clear();
+                                        cl->clear();
+                                    }
+                                } while (status == false);
                             }
                             else {
+                                if (resp->m_CookieList == 0)
+                                    resp->m_CookieList = new CookieList();
+                                auto it = req->m_CookieList->begin();
+                                if (it != req->m_CookieList->end()) {
+                                    CookieList* cl = 0;
+                                    cl = cookieManager.get((*it).m_gname);
+                                    cookieManager.print();
+
+                                    if (cl != 0) {
+                                        httpdlog("DEBUG", "CookieMap was present for : " + (*it).m_gname);
+                                        for (auto it1 = cl->begin(); it1 != cl->end(); it1++) {
+                                            resp->m_CookieList->push_back(*it1);
+                                        }
+                                    }
+                                    else {
+                                        httpdlog("DEBUG", "CookieMap was not present for : " + (*it).m_gname + ", " + (*it).m_value);
+                                        Cookie* c = new Cookie("", "", "");
+                                        cl = new CookieList();
+                                        bool status = false;
+
+                                        do {
+                                            c->generateSessionId();
+                                            //httpdlog("DEBUG", "Cookie not present, creating new : " + c->m_gname +", "+c->m_value);
+                                            if (resp->m_CookieList == 0)
+                                                resp->m_CookieList = new CookieList();
+                                            resp->m_CookieList->push_back(*c);
+
+                                            for (auto it1 = resp->m_CookieList->begin(); it1 != resp->m_CookieList->end(); it1++) {
+                                                cl->push_back(*it1);
+                                            }
+                                            status = cookieManager.add(c->m_gname, cl);
+                                            //cookieManager.print();
+
+                                            if (status == false) {
+                                                //httpdlog("DEBUG", "Cookie present for : " + c->m_gname +", " + c->m_value);
+                                                resp->m_CookieList->clear();
+                                                cl->clear();
+                                            }
+                                        } while (status == false);
+                                    }
+                                }
+                                else {
+                                    httpdlog("ERROR", "Cookie list iterator error");
+                                }
                             }
-                        } while (partial < nHttpDataBytes);
+#if 0
+                            simpleChunkedRespone(id, cmd, resp, " From Non-SSL response code ");
+#endif
+
+                            PyGILState_STATE gstate = PyGILState_Ensure();
+                            try {
+                                //PyRun_SimpleString("print('Hello from thread!')");
+                                string scriptFile = "C:\\HttpdWin\\Pages\\" + req->m_RequestFile.substr(1, req->m_RequestFile.length() - 8);
+                                httpdlog("    ", "Executing script from location : " + scriptFile);
+                                info.req = req;
+                                info.resp = resp;
+                                info.cmd = cmd;
+
+                                FILE* fp = fopen(scriptFile.c_str(), "r");
+                                if (fp) {
+                                    PyObject* main_module = PyImport_AddModule("__main__");
+                                    PyObject* main_dict = PyModule_GetDict(main_module);
+                                    req->m_jsonfile = resp->m_CookieList->size() > 0 ? resp->m_CookieList->front().m_gname : "";
+                                    string jsonfile = generateJsonFile();
+                                    PyObject* py_value  = PyUnicode_FromString(req->m_jsonfile.c_str());
+                                    PyObject* py_value2 = PyUnicode_FromString(jsonfile.c_str());
+                                    PyDict_SetItemString(main_dict, "sessionid", py_value);
+                                    PyDict_SetItemString(main_dict, "input", py_value2);
+
+                                    PyRun_SimpleFile(fp, scriptFile.c_str());
+
+                                    Py_DECREF(py_value);
+                                    Py_DECREF(py_value2);
+                                }
+                                if (fp)
+                                    fclose(fp);
+
+                                info.req = 0;
+                                info.resp = 0;
+                                info.cmd = 0;
+                            }
+                            catch (exception msg) {
+
+                            }
+                            PyGILState_Release(gstate);
+                            delete resp;
+                            resp = 0;
+
+                            
+                        }
+                        else {
+                            httpdlog("INFO", std::to_string(id) + ": Building response header ");
+                            resp->BuildResponseHeader(0);
+                            httpdlog("INFO", std::to_string(id) + ": Built response header ");
+                            resp->addResponseData(resp->m_HttpData);
+                            httpdlog("INFO", std::to_string(id) + ": Adding data ");
+                            size_t nHttpDataBytes = strlen((char*)resp->m_Buffer);
+
+                            int partial = 0, n = 0;
+                            do {
+                                n = send(cmd->fd, (char*)&(resp->m_Buffer[partial]), nHttpDataBytes - partial, 0);
+                                if (n > 0) {
+                                    partial += n;
+                                }
+                                else if (n == -1) {
+                                    //break;
+                                }
+                                else {
+                                }
+                            } while (partial < nHttpDataBytes);
+
+                            resp->m_Buffer[resp->m_ResponseHeaderLen] = 0;
+                            httpdlog("    ", " ");
+                            httpdlog("    ", "Response Header: ");
+                            httpdlog("    ", (char*)resp->m_Buffer);
+                        }
 
                         delete resp;
                         resp = 0;
                     }
 
-                    httpdlog("DEBUG", std::to_string(id) + ": Deleting work object " + std::to_string((unsigned long long int)cmd));
+                    httpdlog("DEBUG", std::to_string(id) + "(Thread ID) : Deleting work object " + std::to_string((unsigned long long int)cmd));
+                    
                     closesocket(cmd->fd);
                     cmd->fd = 0;
                     delete cmd;

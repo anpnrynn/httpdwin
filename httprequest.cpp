@@ -26,13 +26,16 @@ NameMimeValues & NameMimeValues::operator =( const NameMimeValues& cp){
 
 HttpRequest::HttpRequest(){
     m_Len = 0;
+    m_cLen = 0;
     m_FieldCount = 0;
     m_HttpHeaderComplete = false;
+    m_CookieList = 0;
 }
 
 HttpRequest::~HttpRequest(){
     httpdlog("DEBUG", "Deleting request object: " + to_string((unsigned long long int) this));
     m_Len = 0;
+    m_cLen = 0;
 }
 
 
@@ -60,7 +63,7 @@ void HttpRequest::parseQuerystring(){
         m_RequestFile += m_DecodedUrl[i++];
     }
     i++;
-    httpdlog("INFO", "Request File = " + m_RequestFile );
+    httpdlog("WARN", "Request File = " + m_RequestFile );
     NameMimeValues *nmv = new NameMimeValues;
     nmv->m_Name = "";
     nmv->m_Mime = "";
@@ -93,9 +96,9 @@ void HttpRequest::parseQuerystring(){
     }
 
     Query::iterator qi = query.begin();
-    httpdlog("INFO", "Query String = ");
+    httpdlog("DEBUG", "Query String = ");
     while( qi != query.end() ){
-        httpdlog("INFO", qi->first + "  : " +(*(qi->second)).m_Value );
+        httpdlog("DEBUG", qi->first + "  : " +(*(qi->second)).m_Value );
         qi++;
     }
 }
@@ -124,6 +127,63 @@ void HttpRequest::readHttpReqLine( HttpRequest *req, string &line ){
     httpdlog(" ", req->m_Method +"\n        "+req->m_Version +"\n        "+ req->m_EncodedUrl+"\n        "+req->m_DecodedUrl);
 }
 
+CookieList* HttpRequest::readCookies ( HttpRequest *req, string &line ){
+    size_t i = 0;
+	CookieList* cookieList = new CookieList;
+    Cookie c;
+
+    string cookieName = "";
+    string cookieValue = "";
+    bool readingName = true;
+    while( i < line.length() ){
+        if( line[i] == '=' && readingName ){
+            readingName = false;
+            i++;
+        } else if( line[i] == ';' ){
+            
+            c.m_name = cookieName;
+            c.m_value = cookieValue;
+			cookieList->push_back(c);
+            httpdlog("DEBUG", "Cookie: " + cookieName + " -> " + cookieValue);
+            cookieName = "";
+            cookieValue = "";
+            readingName = true;
+            i++;
+            if( line[i] == ' ' ) i++;
+        } else {
+            if( readingName )
+                cookieName += line[i];
+            else
+                cookieValue += line[i];
+            i++;
+        }
+    }
+    if( cookieName.length() > 0 ){
+        c.m_name = cookieName;
+        c.m_value = cookieValue;
+        cookieList->push_back(c);
+        httpdlog("DEBUG", "Cookie: " + cookieName + " -> " + cookieValue);
+    }
+
+	CookieList::iterator it = cookieList->begin();
+    string gname = "";
+    while (it != cookieList->end()) {
+        if (it->m_name == "SessionID") {
+            gname = it->m_value;
+            break;
+        }
+        it++;
+    }
+
+    it = cookieList->begin();
+    while (it != cookieList->end()) {
+        it->m_gname = gname;
+        it++;
+    }
+	return cookieList;
+}
+
+
 void HttpRequest::readHeaderLine ( HttpRequest *req, string &line ){
     //httpdlog("WARN","HTTP header field line processing");
     size_t m    = line.find(':', 0 );
@@ -148,11 +208,24 @@ void HttpRequest::readHeaderLine ( HttpRequest *req, string &line ){
     }
     */
 
+    if (field == "Content-Length") {
+		
+        req->m_cLen = atoi(line.substr(m + 2, line.length() - 1).c_str());
+        httpdlog("DEBUG", "Post or Put data present , Content-Length = " + to_string(req->m_cLen)) ;
+    }
+
     if( fieldName != "" ){
-        req->m_Headers[req->m_FieldCount++] = line.substr( m+2, line.length()-1);
-        httpdlog( " ",field + ": "+line.substr( m+2, line.length()-1));
+		string fieldValue = line.substr(m + 2, line.length() - 1);
+        req->m_HeaderNames[req->m_FieldCount] = field;
+        req->m_Headers[req->m_FieldCount++] = fieldValue;
+
+        if (field == "Cookie") {
+            req->m_CookieList = readCookies(req, fieldValue);
+        }
+
+        httpdlog("DEBUG", req->m_HeaderNames[req->m_FieldCount-1] + " -> "+ req->m_Headers[req->m_FieldCount-1]);
     } else {
-        httpdlog("WARN","HTTP header field unknown : " + field );
+        httpdlog("XTRA","HTTP header field unknown : " + field );
     }
 }
 
@@ -188,7 +261,6 @@ void HttpRequest::readHttpHeader ( HttpRequest *req, char *buffer, int *len, int
 
 void HttpRequest::readHttpData   ( char *buffer, int *len, int totalLen, string *filename ){
 }
-
 
 void HttpRequest::processPostData( string *filename ){
 }

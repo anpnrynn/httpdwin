@@ -1,4 +1,7 @@
 //Copyright Anoop Kumar Narayanan - 2025 httpdwin
+
+#include <Python.h>
+
 #include <iostream>
 #include <fstream>
 #include <atomic>
@@ -23,6 +26,7 @@
 #pragma comment(lib, "WS2_32.lib")
 #pragma comment(lib, "libssl.lib")
 #pragma comment(lib, "libcrypto.lib")
+#pragma comment(lib, "python313.lib")
 
 using namespace std;
 
@@ -57,6 +61,92 @@ int parseConfig(){
     return 0;
 }
 
+extern thread_local ThreadInfo info;
+
+static PyObject* wwwprint(PyObject* self, PyObject* args) {
+    httpdlog("DEBUG", "wwwprint called ");
+    char* strval = 0;
+    Py_ssize_t  strlength = 0;
+    if (!PyArg_ParseTuple(args, "s#", &strval, &strlength)) {
+        return NULL;  // Error: wrong arguments
+    }
+    if (strval && strlength > 0)
+        ThreadPool::sendHttpData(strval, strlen(strval));
+    Py_RETURN_NONE;
+}
+
+static PyObject* wwwprintend(PyObject* self, PyObject* args) {
+    httpdlog("DEBUG", "wwwprintend called ");
+    char* strval  = 0;
+    Py_ssize_t  strlength = 0;
+    if (!PyArg_ParseTuple(args, "s#", &strval, &strlength)) {
+        return NULL;  // Error: wrong arguments
+    }
+    if (strval)
+        ThreadPool::sendHttpDataFinal(strval, strlen(strval));
+    Py_RETURN_NONE;
+}
+
+static PyObject* wwwheadercomplete(PyObject* self, PyObject* args) {
+    httpdlog("DEBUG", "wwwheadercomplete called ");
+    ThreadPool::sendHttpHeader();
+    Py_RETURN_NONE;
+}
+
+static PyObject* wwwheaderadd(PyObject* self, PyObject* args) {
+    httpdlog("DEBUG", "wwwheaderadd called ");
+    char* strval = 0;
+    Py_ssize_t  strlength = 0;
+    if (!PyArg_ParseTuple(args, "s#", &strval, &strlength)) {
+        return NULL;  // Error: wrong arguments
+    }
+    if (strval && strlength > 0)
+        ThreadPool::addHttpHeader(strval);
+    Py_RETURN_NONE;
+}
+
+static PyObject* wwwmime(PyObject* self, PyObject* args) {
+    httpdlog("DEBUG", "wwwmime called ");
+    char* strval = 0;
+    Py_ssize_t strlength = 0;
+    if (!PyArg_ParseTuple(args, "s#", &strval, &strlength)) {
+        return NULL;  // Error: wrong arguments
+    }
+    if (strval && strlength > 0)
+        info.resp->m_ContentType = strval;
+    else
+        info.resp->m_ContentType = "text/plain";
+    Py_RETURN_NONE;
+}
+
+static PyObject* wwwsessionclear(PyObject* self, PyObject* args) {
+    httpdlog("DEBUG", "wwwsessionclear called ");
+    ThreadPool::clearHttpSession();
+    Py_RETURN_NONE;
+}
+
+static PyMethodDef HttpdWinMethods[] = {
+    {"wwwprint", wwwprint, METH_VARARGS, "Prints onto the www browser"},
+    {"wwwprintend", wwwprintend, METH_VARARGS, "Prints the final content onto the www browser"},
+    {"wwwheadercomplete", wwwheadercomplete, METH_VARARGS, "Sends the header"},
+    {"wwwmime", wwwmime, METH_VARARGS, "Sets Content-Type field" },
+    {"wwwheaderadd", wwwheaderadd, METH_VARARGS, "Sets headers, Omit the carriage return and linefeed" },
+    {"wwwsessionclear", wwwsessionclear, METH_VARARGS, "Clears all cookies of a session"},
+    {NULL, NULL, 0, NULL}  // Sentinel
+};
+
+struct PyModuleDef HttpdWin = {
+    PyModuleDef_HEAD_INIT,
+    "HttpdWin",     // Module name
+    "HttpdWin support module",           // Optional docstring
+    -1,             // Size of per-interpreter state
+    HttpdWinMethods
+};
+
+PyMODINIT_FUNC PyInit_HttpdWin(void) {
+    return PyModule_Create(&HttpdWin);
+}
+
 
 int main()
 {
@@ -70,11 +160,21 @@ int main()
     SOCKET sslsrv =0, sslclient = 0;
     SOCKET sslsrv6 = 0, sslclient6 = 0;
 
+    extern struct PyModuleDef HttpdWin;
+
+    PyImport_AppendInittab("HttpdWin", PyInit_HttpdWin);
+    Py_Initialize();
+    PyImport_ImportModule("HttpdWin");
+    Py_BEGIN_ALLOW_THREADS
 
     short int serverPort  = atoi(httpdwinConfig["httpport"].c_str());
     short int serverPort6 = serverPort;
     short int sslserverPort = atoi(httpdwinConfig["httpsport"].c_str());
     short int sslserverPort6 = sslserverPort;
+
+    httpdloglevel = atoi(httpdwinConfig["debuglevel"].c_str());
+    if (httpdloglevel < 0)
+        httpdloglevel = 0;
 
     char logMsg[256];
     snprintf( logMsg, 254, "Using HTTP port = %d and, HTTPS port = %d ", serverPort, sslserverPort);
@@ -278,6 +378,13 @@ int main()
         httpdlog (  "INFO", "Private key file loaded IPv6 C:\\Httpdwin\\Certs\\httpdwinkey6.pem" );
     }
 
+    extern CookieManager cookieManager;
+    cookieManager.openFileForReading();
+    cookieManager.loadAll();
+    cookieManager.closeFile();
+
+	httpdlog("INFO", "Entering main loop");
+
     WSAPOLLFD    *pollfds = new WSAPOLLFD[5];
 
     int nPorts   = 4;
@@ -287,7 +394,7 @@ int main()
     httpdlog("INFO", logMsg);
 
     ThreadPool *tp = new ThreadPool(nThreads);
-
+    int saveCount = 0;
     while ( true ) {
         fflush ( stderr );
 
@@ -309,155 +416,169 @@ int main()
 
         int rc = 0;
         int q = 0;
-        if ( ( rc = WSAPoll ( pollfds, nPorts, 1 ) ) != SOCKET_ERROR ) {
+        if ((rc = WSAPoll(pollfds, nPorts, 1)) != SOCKET_ERROR) {
             q++;
-            if( q%10000 == 0)
-                httpdlog ( "Debug", "Looping in poll" );
+            if (q % 10000 == 0)
+                httpdlog("Debug", "Looping in poll");
+
+            if (pollfds[0].revents & POLLIN) {
+                socklen_t addrlen = sizeof(sockaddr_in);
+                if ((client = accept(srv, (sockaddr*)&clientAddr, &addrlen))) {
+                    httpdlog("INFO", "Assigning IPv4 task ");
+                    tp->assignTaskRr(new ThreadCommand(WORK, client, false, false, false, 0, "", 0));
+                }
+            }
+
+            if (pollfds[1].revents & POLLIN) {
+                socklen_t addrlen = sizeof(sockaddr_in6);
+                if ((client6 = accept(srv6, (sockaddr*)&clientAddr6, &addrlen))) {
+                    httpdlog("INFO", "Assigning IPv6 task ");
+                    tp->assignTaskRr(new ThreadCommand(WORK, client6, false, false, true, 0, "", 0));
+                }
+            }
+
+            if (pollfds[2].revents & POLLIN) {
+                socklen_t addrlen = sizeof(sockaddr_in);
+                if ((sslclient = accept(sslsrv, (sockaddr*)&sslclientAddr, &addrlen))) {
+                    SSL* ssl = SSL_new(cIp4);
+                    if (!ssl) {
+                        httpdlog("INFO", "SSL ipv4 object creation failed");
+                        continue;
+                    }
+                    else {
+                        httpdlog("INFO", "SSL ipv4 object created : " + std::to_string((unsigned long long int)ssl));
+                    }
+                    SSL_set_fd(ssl, sslclient);
+                    httpdlog("INFO", "SSL ipv4 connection received");
+
+                    int rc = -1;
+                    int sslerror = 0;
+                    bool isSslAccepted = false;
+                    while (!(isSslAccepted)) {
+                        rc = SSL_accept(ssl);
+                        if (rc > 0) {
+                            isSslAccepted = true;
+                            httpdlog("INFO", "SSL ipv4 connection received ACCEPTED");
+                            break;
+                        }
+                        else {
+                            sslerror = SSL_get_error(ssl, rc);
+                            if (rc == 0 && sslerror == SSL_ERROR_WANT_ACCEPT) {
+                                //httpdlog("INFO", "SSL ipv4 connection received WANT ACCEPT");
+                                sslerror = 0;
+                                continue;
+                            }
+                            else if (rc < 0 && (sslerror == SSL_ERROR_WANT_WRITE || sslerror == SSL_ERROR_WANT_READ)) {
+                                //httpdlog("INFO", "SSL connection received WANT WRITE OR READ");
+                                sslerror = 0;
+                                isSslAccepted = false;
+                                continue;
+                            }
+                            else if (rc < 0) {
+                                httpdlog("INFO", "SSL ipv4 connection  error");
+                                isSslAccepted = false;
+                                closesocket(sslclient);
+                                SSL_shutdown(ssl);
+                                SSL_free(ssl);
+                                ssl = 0;
+                                break;
+                            }
+                            else {
+                                httpdlog("INFO", "SSL ipv4 connection error something else");
+                                isSslAccepted = false;
+                                closesocket(sslclient);
+                                SSL_shutdown(ssl);
+                                SSL_free(ssl);
+                                ssl = 0;
+                                break;
+                            }
+                        }
+                        std::this_thread::sleep_for(std::chrono::microseconds(1));
+                    }
+
+                    if (ssl && isSslAccepted) {
+                        httpdlog("INFO", "Assigning task SSL ipv4 ");
+                        //ThreadCommand *t = new ThreadCommand(WORK, sslclient, true, isSslAccepted, false, 0, "", ssl);
+                        ThreadCommand* t = new ThreadCommand(WORK, sslclient, true, isSslAccepted, false, 0, "", ssl);
+                        tp->assignTaskRr(t);
+                    }
+                }
+            }
+
+            if (pollfds[3].revents & POLLIN) {
+                socklen_t addrlen = sizeof(sockaddr_in6);
+                if ((sslclient6 = accept(sslsrv6, (sockaddr*)&sslclientAddr6, &addrlen))) {
+                    SSL* ssl6 = SSL_new(cIp6);
+                    if (!ssl6) {
+                        httpdlog("INFO", "SSL ipv6 object creation failed");
+                        continue;
+                    }
+                    else {
+                        httpdlog("INFO", "SSL ipv6 object created : " + std::to_string((unsigned long long int)ssl6));
+                    }
+                    SSL_set_fd(ssl6, sslclient6);
+                    httpdlog("INFO", "SSL ipv6 connection received");
+
+                    int sslerror = 0;
+                    //SSL *ssl = cmd->ssl;
+                    bool isSslAccepted = false;
+                    while (!(isSslAccepted)) {
+                        rc = SSL_accept(ssl6);
+                        if (rc > 0) {
+                            isSslAccepted = true;
+                            httpdlog("INFO", "SSL ipv6 connection received ACCEPTED");
+                            break;
+                        }
+                        else {
+                            sslerror = SSL_get_error(ssl6, rc);
+                            if (rc == 0 && sslerror == SSL_ERROR_WANT_ACCEPT) {
+                                //httpdlog("INFO", "SSL ipv6 connection received WANT ACCEPT");
+                                sslerror = 0;
+                                continue;
+                            }
+                            else if (rc < 0 && (sslerror == SSL_ERROR_WANT_WRITE || sslerror == SSL_ERROR_WANT_READ)) {
+                                //httpdlog("INFO", "SSL connection received WANT WRITE OR READ");
+                                sslerror = 0;
+                                isSslAccepted = false;
+                                continue;
+                            }
+                            else if (rc < 0) {
+                                httpdlog("INFO", "SSL ipv6 connection error");
+                                isSslAccepted = false;
+                                closesocket(sslclient6);
+                                SSL_shutdown(ssl6);
+                                SSL_free(ssl6);
+                                ssl6 = 0;
+                                break;
+                            }
+                            else {
+                                httpdlog("INFO", "SSL ipv6 connection error something else");
+                                isSslAccepted = false;
+                                closesocket(sslclient6);
+                                SSL_shutdown(ssl6);
+                                SSL_free(ssl6);
+                                ssl6 = 0;
+                                break;
+                            }
+                        }
+                        std::this_thread::sleep_for(std::chrono::microseconds(1));
+                    }
+
+
+                    if (ssl6 && isSslAccepted) {
+                        httpdlog("INFO", "Assigning task SSL ipv6 ");
+                        ThreadCommand* t = new ThreadCommand(WORK, sslclient6, true, isSslAccepted, true, 0, "", ssl6);
+                        tp->assignTaskRr(t);
+                    }
+                }
+            }
             
-            if ( pollfds[0].revents & POLLIN ) {
-                socklen_t addrlen = sizeof ( sockaddr_in );
-                if ( ( client = accept ( srv, ( sockaddr * ) &clientAddr, &addrlen ) ) ) {
-                        httpdlog("INFO", "Assigning IPv4 task ");
-                        tp->assignTaskRr(new ThreadCommand(WORK, client, false, false, false, 0, "", 0) );
-                }
-            }
-
-            if ( pollfds[1].revents & POLLIN ) {
-                socklen_t addrlen = sizeof ( sockaddr_in6 );
-                if ( ( client6 = accept ( srv6, ( sockaddr * ) &clientAddr6, &addrlen ) ) ) {
-                        httpdlog("INFO", "Assigning IPv6 task ");
-                        tp->assignTaskRr(new ThreadCommand(WORK, client6, false, false, true, 0, "", 0) );
-                }
-            }
-
-            if ( pollfds[2].revents & POLLIN ) {
-                socklen_t addrlen = sizeof ( sockaddr_in );
-                if ( ( sslclient = accept ( sslsrv, ( sockaddr * ) &sslclientAddr, &addrlen ) ) ) {
-                        SSL *ssl = SSL_new ( cIp4 );
-                        if(!ssl ){
-                            httpdlog("INFO", "SSL ipv4 object creation failed");
-                            continue;
-                        } else {
-                                httpdlog("INFO", "SSL ipv4 object created : " + std::to_string( (unsigned long long int)ssl ) );
-                        }
-                        SSL_set_fd ( ssl, sslclient );
-                        httpdlog("INFO", "SSL ipv4 connection received");
-
-                        int rc = -1;
-                        int sslerror = 0;
-                        bool isSslAccepted = false;
-                        while ( ! (isSslAccepted) ) {
-                            rc = SSL_accept ( ssl );
-                            if ( rc > 0 ){
-                                isSslAccepted = true;
-                                httpdlog("INFO", "SSL ipv4 connection received ACCEPTED");
-                                break;
-                            } else {
-                                sslerror = SSL_get_error ( ssl, rc );
-                                if ( rc == 0 && sslerror == SSL_ERROR_WANT_ACCEPT) {
-                                    //httpdlog("INFO", "SSL ipv4 connection received WANT ACCEPT");
-                                    sslerror = 0;
-                                    continue;
-                                }
-                                else if ( rc < 0 && ( sslerror == SSL_ERROR_WANT_WRITE || sslerror == SSL_ERROR_WANT_READ ) ){
-                                    //httpdlog("INFO", "SSL connection received WANT WRITE OR READ");
-                                    sslerror = 0;
-                                    isSslAccepted = false;
-                                    continue;
-                                }
-                                else if ( rc < 0 ) {
-                                    httpdlog("INFO", "SSL ipv4 connection  error");
-                                    isSslAccepted = false;
-                                    closesocket( sslclient );
-                                    SSL_shutdown ( ssl );
-                                    SSL_free ( ssl );
-                                    ssl = 0;
-                                    break;
-                                } else {
-                                    httpdlog("INFO", "SSL ipv4 connection error something else");
-                                    isSslAccepted = false;
-                                    closesocket( sslclient );
-                                    SSL_shutdown ( ssl );
-                                    SSL_free ( ssl );
-                                    ssl = 0;
-                                    break;
-                                }
-                            }
-                            std::this_thread::sleep_for(std::chrono::microseconds(1));
-                        }
-
-                        if( ssl && isSslAccepted ) {
-                            httpdlog("INFO", "Assigning task SSL ipv4 ");
-                            //ThreadCommand *t = new ThreadCommand(WORK, sslclient, true, isSslAccepted, false, 0, "", ssl);
-                            ThreadCommand *t = new ThreadCommand(WORK, sslclient, true, isSslAccepted, false, 0, "", ssl);
-                            tp->assignTaskRr( t );
-                        }
-                }
-            }
-
-            if ( pollfds[3].revents & POLLIN ) {
-                socklen_t addrlen = sizeof ( sockaddr_in6 );
-                if ( ( sslclient6 = accept ( sslsrv6, ( sockaddr * ) &sslclientAddr6, &addrlen ) ) ) {
-                        SSL *ssl6 = SSL_new ( cIp6 );
-                        if(!ssl6){
-                            httpdlog("INFO", "SSL ipv6 object creation failed");
-                            continue;
-                        } else {
-                                httpdlog("INFO", "SSL ipv6 object created : " + std::to_string( (unsigned long long int)ssl6 ) );
-                        }
-                        SSL_set_fd ( ssl6, sslclient6 );
-                        httpdlog("INFO", "SSL ipv6 connection received");
-
-                                                int sslerror = 0;
-                        //SSL *ssl = cmd->ssl;
-                        bool isSslAccepted = false;
-                        while ( ! (isSslAccepted) ) {
-                            rc = SSL_accept ( ssl6 );
-                            if ( rc > 0 ){
-                                isSslAccepted = true;
-                                httpdlog("INFO", "SSL ipv6 connection received ACCEPTED");
-                                break;
-                            } else {
-                                sslerror = SSL_get_error ( ssl6, rc );
-                                if ( rc == 0 && sslerror == SSL_ERROR_WANT_ACCEPT) {
-                                    //httpdlog("INFO", "SSL ipv6 connection received WANT ACCEPT");
-                                    sslerror = 0;
-                                    continue;
-                                }
-                                else if ( rc < 0 && ( sslerror == SSL_ERROR_WANT_WRITE || sslerror == SSL_ERROR_WANT_READ ) ){
-                                    //httpdlog("INFO", "SSL connection received WANT WRITE OR READ");
-                                    sslerror = 0;
-                                    isSslAccepted = false;
-                                    continue;
-                                }
-                                else if ( rc < 0 ) {
-                                    httpdlog("INFO", "SSL ipv6 connection error");
-                                    isSslAccepted = false;
-                                    closesocket( sslclient6 );
-                                    SSL_shutdown ( ssl6 );
-                                    SSL_free ( ssl6 );
-                                    ssl6 = 0;
-                                    break;
-                                } else {
-                                    httpdlog("INFO", "SSL ipv6 connection error something else");
-                                    isSslAccepted = false;
-                                    closesocket( sslclient6 );
-                                    SSL_shutdown ( ssl6 );
-                                    SSL_free ( ssl6 );
-                                    ssl6 = 0;
-                                    break;
-                                }
-                            }
-                            std::this_thread::sleep_for(std::chrono::microseconds(1));
-                        }
-
-
-                        if( ssl6 && isSslAccepted ){
-                            httpdlog("INFO", "Assigning task SSL ipv6 ");
-                            ThreadCommand *t = new ThreadCommand(WORK, sslclient6, true, isSslAccepted, true, 0, "", ssl6);
-                            tp->assignTaskRr( t );
-                        }
-                }
+            saveCount++;
+            if (saveCount > 1000) {
+                cookieManager.openFile();
+                cookieManager.saveAll();
+                cookieManager.closeFile();
+                saveCount = 0;
             }
             std::this_thread::sleep_for(std::chrono::microseconds(1));
         } else {
@@ -465,6 +586,9 @@ int main()
             std::this_thread::sleep_for(std::chrono::microseconds(10));
         }
     }
+
+    Py_END_ALLOW_THREADS
+    Py_Finalize();
 
     return 0;
 }

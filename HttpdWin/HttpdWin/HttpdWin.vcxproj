@@ -71,10 +71,10 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LibraryPath>C:\Opensource\OpenSSL-Win64\lib\VC\x64\MT;C:\Opensource\OpenSSL-Win64\bin;$(LibraryPath)</LibraryPath>
+    <LibraryPath>C:\Opensource\Python313;C:\Opensource\Python313\libs;C:\Opensource\OpenSSL-Win64\lib\VC\x64\MT;C:\Opensource\OpenSSL-Win64\bin;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <LibraryPath>C:\Opensource\OpenSSL-Win64\lib\VC\x64\MT;C:\Opensource\OpenSSL-Win64\bin;$(LibraryPath)</LibraryPath>
+    <LibraryPath>C:\Opensource\Python313;C:\Opensource\Python313\libs;C:\Opensource\OpenSSL-Win64\lib\VC\x64\MT;C:\Opensource\OpenSSL-Win64\bin;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -109,7 +109,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>C:\Projects\WinProjects\httpdwinvs;C:\Opensource\OpenSSL-Win64\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Opensource\Python313\include;C:\Projects\WinProjects\httpdwinvs;C:\Opensource\OpenSSL-Win64\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -126,7 +126,7 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>C:\Projects\WinProjects\httpdwinvs;C:\Opensource\OpenSSL-Win64\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Opensource\Python313\include;C:\Projects\WinProjects\httpdwinvs;C:\Opensource\OpenSSL-Win64\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -135,6 +135,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\cookie.cpp" />
     <ClCompile Include="..\..\httpconnection.cpp" />
     <ClCompile Include="..\..\httpdlog.cpp" />
     <ClCompile Include="..\..\httpheaders.cpp" />
@@ -144,6 +145,8 @@
     <ClCompile Include="..\..\threadpool.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\chunkedencoding.h" />
+    <ClInclude Include="..\..\cookie.h" />
     <ClInclude Include="..\..\httpconnection.h" />
     <ClInclude Include="..\..\httpdlog.h" />
     <ClInclude Include="..\..\httprequest.h" />
