@@ -7,7 +7,7 @@ Compile using visual studio.
 
 Pre-requisites:    
 1. Openssl   
-2. Python   
+2. Python 3   
      
      
 Execution Requirements:    
@@ -21,4 +21,4 @@ As of now, Load tests haven't been done.
 There may be memory leaks.   
 Does not use MinGW neither does it use MSys or WSL.    
 
-Last Updated : 09/07/2025 or In Indian format 07/09/2025    
+Last Updated : 09/13/2025 or In Indian format 13/09/2025    
