@@ -760,6 +760,16 @@ void ThreadPool::threadpoolFunction(int id ){
 #endif
 
                             PyGILState_STATE gstate = PyGILState_Ensure();
+
+                            PyThreadState* mainstate = PyThreadState_Get();
+                            PyInterpreterState* maininter = PyThreadState_GetInterpreter(mainstate);
+                            PyThreadState_Swap(NULL);
+                            PyThreadState* tState = Py_NewInterpreter();
+                            PyInterpreterState* interpreter = tState->interp;
+                            PyThreadState_Swap(tState);
+
+
+
                             try {
                                 //PyRun_SimpleString("print('Hello from thread!')");
                                 string scriptFile = "C:\\HttpdWin\\Pages\\"+req->m_RequestFile.substr(1, req->m_RequestFile.length() - 8);
@@ -794,6 +804,8 @@ void ThreadPool::threadpoolFunction(int id ){
                             catch (exception msg) {
 
                             }
+                            Py_EndInterpreter(tState);
+                            PyThreadState_Swap(mainstate);
                             PyGILState_Release(gstate);
                             delete resp;
                             resp = 0;
@@ -1044,6 +1056,14 @@ void ThreadPool::threadpoolFunction(int id ){
 #endif
 
                             PyGILState_STATE gstate = PyGILState_Ensure();
+
+                            PyThreadState* mainstate = PyThreadState_Get();
+                            PyInterpreterState* maininter = PyThreadState_GetInterpreter(mainstate);
+                            PyThreadState_Swap(NULL);
+                            PyThreadState* tState = Py_NewInterpreter();
+                            PyInterpreterState* interpreter = tState->interp;
+                            PyThreadState_Swap(tState);
+
                             try {
                                 //PyRun_SimpleString("print('Hello from thread!')");
                                 string scriptFile = "C:\\HttpdWin\\Pages\\" + req->m_RequestFile.substr(1, req->m_RequestFile.length() - 8);
@@ -1078,6 +1098,10 @@ void ThreadPool::threadpoolFunction(int id ){
                             catch (exception msg) {
 
                             }
+
+                            Py_EndInterpreter(tState);
+                            PyThreadState_Swap(mainstate);
+
                             PyGILState_Release(gstate);
                             delete resp;
                             resp = 0;
