@@ -71,7 +71,19 @@ static PyObject* wwwprint(PyObject* self, PyObject* args) {
         return NULL;  // Error: wrong arguments
     }
     if (strval && strlength > 0)
-        ThreadPool::sendHttpData(strval, strlen(strval));
+        ThreadPool::sendHttpData(strval, strlength);
+    Py_RETURN_NONE;
+}
+
+static PyObject* wwwbytesprint(PyObject* self, PyObject* args) {
+    httpdlog("DEBUG", "wwwbyteprint called ");
+    char* bytesval = 0;
+    Py_ssize_t  byteslength = 0;
+    if (!PyArg_ParseTuple(args, "y#", &bytesval, &byteslength)) {
+        return NULL;  // Error: wrong arguments
+    }
+    if (bytesval && byteslength > 0)
+        ThreadPool::sendHttpData(bytesval, byteslength);
     Py_RETURN_NONE;
 }
 
@@ -83,7 +95,7 @@ static PyObject* wwwprintend(PyObject* self, PyObject* args) {
         return NULL;  // Error: wrong arguments
     }
     if (strval)
-        ThreadPool::sendHttpDataFinal(strval, strlen(strval));
+        ThreadPool::sendHttpDataFinal(strval, strlength);
     Py_RETURN_NONE;
 }
 
@@ -127,6 +139,7 @@ static PyObject* wwwsessionclear(PyObject* self, PyObject* args) {
 
 static PyMethodDef HttpdWinMethods[] = {
     {"wwwprint", wwwprint, METH_VARARGS, "Prints onto the www browser"},
+    {"wwwbytesprint", wwwbytesprint, METH_VARARGS, "Prints byte data onto the www browser"},
     {"wwwprintend", wwwprintend, METH_VARARGS, "Prints the final content onto the www browser"},
     {"wwwheadercomplete", wwwheadercomplete, METH_VARARGS, "Sends the header"},
     {"wwwmime", wwwmime, METH_VARARGS, "Sets Content-Type field" },

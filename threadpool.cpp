@@ -5,6 +5,7 @@
 #include <httpdlog.h>
 #include <chunkedencoding.h>
 
+#include <algorithm>
 #include <fstream>
 using namespace std;
 
@@ -287,6 +288,7 @@ void ThreadPool::sendHttpHeader() {
 }
 
 
+//len should less than 65532 bytes in one go for chunked encoding
 void ThreadPool::sendHttpData(char *data, size_t len) {
     ChunkedEncoding* ce = new ChunkedEncoding();
     ce->setData(data, len, false);
@@ -490,13 +492,14 @@ string ThreadPool::generateJsonFile() {
             i++;
         }
         f << "\t}," << endl << "\n\t\"url\" : \"" <<info.req->m_EncodedUrl<<"\"," << endl;
+        std::replace(jsonfile.begin(), jsonfile.end(), '\\', '/');
         f << "\t\"jsonfile\" : \"" << jsonfile << "\"," << endl;
         f << "\t\"method\" : \"" << info.req->m_Method << "\"," << endl;
         f << "\t\"version\" : \"" << info.req->m_Version << "\"," << endl;
         f << "\t\"postfile\" : \"" << info.req->m_TempPostFileName << "\"," << endl;
         f << "\t\"putfile\" : \"" << info.req->m_TempPutFileName << "\"," << endl;
         f << "\t\"requestfile\" : \"" << info.req->m_RequestFile << "\"," << endl;
-        f << "\t\"length\" : \"" << info.req->m_Len << "\"," << endl;
+        f << "\t\"length\" : \"" << info.req->m_Len << "\"" << endl;
         f << "}" << endl;
         f.flush();
         f.close();
