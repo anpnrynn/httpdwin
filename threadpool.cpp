@@ -290,36 +290,77 @@ void ThreadPool::sendHttpHeader() {
 
 //len should less than 65532 bytes in one go for chunked encoding
 void ThreadPool::sendHttpData(char *data, size_t len) {
-    ChunkedEncoding* ce = new ChunkedEncoding();
-    ce->setData(data, len, false);
-    int i=0, partial = 0, n = 0;
-    do {
-        if (info.cmd->isSsl) {
-            n = SSL_write(info.cmd->ssl, (char*)&(ce->data[partial]), ce->size - partial);
-            if (n > 0) {
-                partial += n;
-            }
-            else if (n == -1) {
-                break;
+    const int maxceLen = 60000;
+    int i = 0;
+    if (len > maxceLen) {
+        while (i < len) {
+            ChunkedEncoding* ce = new ChunkedEncoding();
+            if ( (len - i) < maxceLen )
+                ce->setData((char*)&(data[i]), len - i, false);
+			else
+                ce->setData((char*)&(data[i]), maxceLen, false);
+            int partial = 0, n = 0;
+            do {
+                if (info.cmd->isSsl) {
+                    n = SSL_write(info.cmd->ssl, (char*)&(ce->data[partial]), ce->size - partial);
+                    if (n > 0) {
+                        partial += n;
+                    }
+                    else if (n == -1) {
+                        break;
+                    }
+                    else {
+                    }
+                }
+                else {
+                    n = send(info.cmd->fd, (char*)&(ce->data[partial]), ce->size - partial, 0);
+                    if (n > 0) {
+                        partial += n;
+                    }
+                    else if (n == -1) {
+                        //break;
+                    }
+                    else {
+                    }
+                }
+            } while (partial < ce->size);
+            delete ce;
+            i += maxceLen;
+            ce = 0;
+        }
+	}
+	else {
+        ChunkedEncoding* ce = new ChunkedEncoding();
+        ce->setData(data, len, false);
+        int i = 0, partial = 0, n = 0;
+        do {
+            if (info.cmd->isSsl) {
+                n = SSL_write(info.cmd->ssl, (char*)&(ce->data[partial]), ce->size - partial);
+                if (n > 0) {
+                    partial += n;
+                }
+                else if (n == -1) {
+                    break;
+                }
+                else {
+                }
             }
             else {
-            }
-        }
-        else {
 
-            n = send(info.cmd->fd, (char*)&(ce->data[partial]), ce->size - partial, 0);
-            if (n > 0) {
-                partial += n;
+                n = send(info.cmd->fd, (char*)&(ce->data[partial]), ce->size - partial, 0);
+                if (n > 0) {
+                    partial += n;
+                }
+                else if (n == -1) {
+                    //break;
+                }
+                else {
+                }
             }
-            else if (n == -1) {
-                //break;
-            }
-            else {
-            }
-        }
-    } while (partial < ce->size);
-    delete ce;
-    ce = 0;
+        } while (partial < ce->size);
+        delete ce;
+        ce = 0;
+    }
 }
 
 void ThreadPool::sendHttpDataFinal(char* data, size_t len) {
