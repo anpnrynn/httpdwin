@@ -97,6 +97,8 @@ public :
     static void sendHttpDataFinal(char* data, size_t len);
     static void sendHttpData(char* data, size_t len);
     static void sendHttpHeader();
+    static void setCookie(string name, string value, string expires, uint64_t maxAge, bool secure, bool httpOnly, std::string path, std::string domain);
+    static void delCookie(string name);
     static string generateJsonFile();
     static void addHttpHeader(string value);
     static void clearHttpSession();

@@ -86,7 +86,7 @@ std::string Cookie::toString()  {
 	if (!m_expires.empty()) {
 		cookieStr += "Expires=" + m_expires + "; ";
 	}
-	if (m_maxage > 0) {
+	if (m_maxage >= 0) {
 		cookieStr += "Max-Age=" + std::to_string(m_maxage) + "; ";
 	}
 	if (m_secure) {

@@ -107,17 +107,6 @@ static PyObject* wwwheadercomplete(PyObject* self, PyObject* args) {
     Py_RETURN_NONE;
 }
 
-static PyObject* wwwheaderadd(PyObject* self, PyObject* args) {
-    httpdlog("DEBUG", "wwwheaderadd called ");
-    char* strval = 0;
-    Py_ssize_t  strlength = 0;
-    if (!PyArg_ParseTuple(args, "s#", &strval, &strlength)) {
-        return NULL;  // Error: wrong arguments
-    }
-    if (strval && strlength > 0)
-        ThreadPool::addHttpHeader(strval);
-    Py_RETURN_NONE;
-}
 
 static PyObject* wwwmime(PyObject* self, PyObject* args) {
     httpdlog("DEBUG", "wwwmime called ");
@@ -130,6 +119,58 @@ static PyObject* wwwmime(PyObject* self, PyObject* args) {
         info.resp->m_ContentType = strval;
     else
         info.resp->m_ContentType = "text/plain";
+    Py_RETURN_NONE;
+}
+
+static PyObject* wwwheaderadd(PyObject* self, PyObject* args) {
+    httpdlog("DEBUG", "wwwheaderadd called ");
+    char* strval = 0;
+    Py_ssize_t  strlength = 0;
+    if (!PyArg_ParseTuple(args, "s#", &strval, &strlength)) {
+        return NULL;  // Error: wrong arguments
+    }
+    if (strval && strlength > 0)
+        ThreadPool::addHttpHeader(strval);
+    Py_RETURN_NONE;
+}
+
+static PyObject* wwwcookieset(PyObject* self, PyObject* args) {
+    httpdlog("DEBUG", "wwwcookieset called ");
+    static char* empty = (char *)"";
+    uint64_t maxAge = 0;
+    int secure = 0, httpOnly = 0;
+    char* name = 0, *value= 0, *expires = 0, *path=0, *domain=0;
+    Py_ssize_t  namelength = 0, valuelength = 0, expireslength = 0, pathlength = 0, domainlength = 0;
+    //string name, string value, string expires, uint64_t maxAge, bool secure, bool httpOnly, std::string path, std::string domain
+    if (!PyArg_ParseTuple(args, "s#s#s#Kpps#s#", &name, &namelength, &value, &valuelength, 
+                        &expires, &expireslength, &maxAge, &secure, &httpOnly, 
+                        &path, &pathlength, &domain, &domainlength )) {
+        return NULL;  // Error: wrong arguments
+    }
+    if (name && namelength > 0 && value && valuelength > 0) {
+        if (expireslength <= 0)
+            expires = empty;
+        if (pathlength <= 0)
+            expires = empty;
+        if (domainlength <= 0)
+            domain = empty;
+        ThreadPool::setCookie(name, value, expires, maxAge, secure, httpOnly, path, domain);
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject* wwwcookiedel(PyObject* self, PyObject* args) {
+    httpdlog("DEBUG", "wwwcookiedel called ");
+    static char* empty = (char*)"";
+    char* name = 00;
+    Py_ssize_t  namelength = 0, valuelength, expireslength, pathlength, domainlength;
+    //string name, string value, string expires, uint64_t maxAge, bool secure, bool httpOnly, std::string path, std::string domain
+    if (!PyArg_ParseTuple(args, "s#", &name, &namelength)) {
+        return NULL;  // Error: wrong arguments
+    }
+    if (name && namelength > 0 ) {
+        ThreadPool::delCookie(name);
+    }
     Py_RETURN_NONE;
 }
 
@@ -146,6 +187,8 @@ static PyMethodDef HttpdWinMethods[] = {
     {"wwwheadercomplete", wwwheadercomplete, METH_VARARGS, "Sends the header"},
     {"wwwmime", wwwmime, METH_VARARGS, "Sets Content-Type field" },
     {"wwwheaderadd", wwwheaderadd, METH_VARARGS, "Sets headers, Omit the carriage return and linefeed" },
+    {"wwwcookieset", wwwcookieset, METH_VARARGS, "Sets a cookie" },
+    {"wwwcookiedel", wwwcookiedel, METH_VARARGS, "Deletes a cookie" },
     {"wwwsessionclear", wwwsessionclear, METH_VARARGS, "Clears all cookies of a session"},
     {NULL, NULL, 0, NULL}  // Sentinel
 };

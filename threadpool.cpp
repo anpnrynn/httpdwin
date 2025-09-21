@@ -438,6 +438,42 @@ void ThreadPool::sendHttpDataFinal(char* data, size_t len) {
     ce = 0;
 }
 
+void ThreadPool::setCookie(string name, string value, string expires, uint64_t maxAge, bool secure, bool httpOnly, std::string path, std::string domain) {
+    if (info.resp && info.resp->m_CookieList)
+    {
+        string gname = "";
+        if (info.resp->m_CookieList->size() > 0 ) {
+            gname = info.resp->m_CookieList->front().m_gname;
+        }
+        if (gname != "") {
+            Cookie c(gname, name, value, expires, maxAge, secure, httpOnly, path, domain);
+            info.resp->m_CookieList->push_back(c);
+            httpdlog("DEBUG", "Added cookie, setting max age to :" + name +", maxage=" + std::to_string(maxAge) );
+        }
+    }
+}
+
+void ThreadPool::delCookie(string name){
+    if (info.resp && info.resp->m_CookieList)
+    {
+        string gname = "";
+        if (info.resp->m_CookieList->size() > 0) {
+            gname = info.resp->m_CookieList->front().m_gname;
+            CookieList::iterator it = info.resp->m_CookieList->begin();
+            while (it != info.resp->m_CookieList->end()) {
+                if (it->m_name == name)
+                {
+                    //info.resp->m_CookieList->erase(it);
+                    httpdlog("DEBUG", "Deleting cookie, setting max age to zero : " + name );
+                    it->m_maxage = 0;
+                    break;
+                }
+                it++;
+            }
+        }
+    }
+}
+
 void ThreadPool::clearHttpSession() {
     string str = info.resp->m_CookieList->size() > 0 ? info.resp->m_CookieList->front().m_gname : "";
     cookieManager.clear(str);
