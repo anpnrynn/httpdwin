@@ -42,6 +42,8 @@ int parseConfig(){
         string line;
          while( !f.eof() ){
             std::getline( f, line);
+            if (line[0] == '#')
+                continue;
             if (line.length() <= 2)
                 break;
             size_t m = line.find('=', 1 );
@@ -184,6 +186,23 @@ int main()
     short int serverPort6 = serverPort;
     short int sslserverPort = atoi(httpdwinConfig["httpsport"].c_str());
     short int sslserverPort6 = sslserverPort;
+
+    uint8_t transport = 3;
+
+    try {
+        if (httpdwinConfig["transport"] == "secure") {
+            transport = 2;
+        }
+        else if (httpdwinConfig["transport"] == "non-secure") {
+            transport = 1;
+        }
+        else {
+            transport = 3;
+        }
+    }
+    catch (...) {
+        
+    }
 
     httpdloglevel = atoi(httpdwinConfig["debuglevel"].c_str());
     if (httpdloglevel < 0)
@@ -434,7 +453,7 @@ int main()
             if (q % 10000 == 0)
                 httpdlog("Debug", "Looping in poll");
 
-            if (pollfds[0].revents & POLLIN) {
+            if (pollfds[0].revents & POLLIN && transport & 0x01 ) {
                 socklen_t addrlen = sizeof(sockaddr_in);
                 if ((client = accept(srv, (sockaddr*)&clientAddr, &addrlen))) {
                     httpdlog("INFO", "Assigning IPv4 task ");
@@ -442,7 +461,7 @@ int main()
                 }
             }
 
-            if (pollfds[1].revents & POLLIN) {
+            if (pollfds[1].revents & POLLIN && transport & 0x01 ) {
                 socklen_t addrlen = sizeof(sockaddr_in6);
                 if ((client6 = accept(srv6, (sockaddr*)&clientAddr6, &addrlen))) {
                     httpdlog("INFO", "Assigning IPv6 task ");
@@ -450,7 +469,7 @@ int main()
                 }
             }
 
-            if (pollfds[2].revents & POLLIN) {
+            if (pollfds[2].revents & POLLIN && transport & 0x02) {
                 socklen_t addrlen = sizeof(sockaddr_in);
                 if ((sslclient = accept(sslsrv, (sockaddr*)&sslclientAddr, &addrlen))) {
                     SSL* ssl = SSL_new(cIp4);
@@ -518,7 +537,7 @@ int main()
                 }
             }
 
-            if (pollfds[3].revents & POLLIN) {
+            if (pollfds[3].revents & POLLIN && transport & 0x02) {
                 socklen_t addrlen = sizeof(sockaddr_in6);
                 if ((sslclient6 = accept(sslsrv6, (sockaddr*)&sslclientAddr6, &addrlen))) {
                     SSL* ssl6 = SSL_new(cIp6);

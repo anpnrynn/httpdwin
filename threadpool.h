@@ -93,7 +93,7 @@ public :
     void taskDone(int i );
     static size_t  isFullHeaderPresent(char *data, size_t len);
     static void threadpoolFunction(int id);
-    static void simpleChunkedRespone(int id, ThreadCommand* cmd, HttpResponse* resp, const char* simplestring);
+    static void simpleChunkedResponse(int id, ThreadCommand* cmd, HttpResponse* resp, const char* simplestring);
     static void sendHttpDataFinal(char* data, size_t len);
     static void sendHttpData(char* data, size_t len);
     static void sendHttpHeader();
