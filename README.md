@@ -7,7 +7,8 @@ Compile using visual studio.
 
 ### Pre-requisites:    
 1. Openssl   
-2. Python 3   
+2. Python 3
+3. Visual Studio Express (For compilation, you should find the solution file under HttpdWin/HttpdWin.sln )
      
      
 ### Execution Requirements:    
@@ -45,7 +46,7 @@ Does not use MinGW neither does it use MSys or WSL.
      C:\HttpdWin\Temp\   <- Where all the http temp files are created, example post upload, json files, put files ... etc (this can be cleared often)
      C:\HttpdWin\httpdwin.conf  <- Simple configuration file for httpd server
 
-##### Configuration looks like this1
+##### Configuration looks like this:
      #number of threads to launch in httpdwin program         
      threads=4     
      #http port number for non ssl connections         
@@ -83,7 +84,7 @@ Does not use MinGW neither does it use MSys or WSL.
      wwwheadercomplete - Sends the header to the web browser         
      wwwmime           - Sets Content-Type field     
      wwwheaderadd      - Sets headers, Omit the carriage return and linefeed     
-     wwwcookieset"     - Sets a cookie     
+     wwwcookieset      - Sets a cookie     
      wwwcookiedel      - Deletes a cookie    
      wwwsessionclear   - Clears all cookies of a session    
 
