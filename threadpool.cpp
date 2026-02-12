@@ -615,8 +615,11 @@ string ThreadPool::generateJsonFile() {
         f << "\t\"jsonfile\" : \"" << jsonfile << "\"," << endl;
         f << "\t\"method\" : \"" << info.req->m_Method << "\"," << endl;
         f << "\t\"version\" : \"" << info.req->m_Version << "\"," << endl;
+        std::replace(info.req->m_TempPostFileName.begin(), info.req->m_TempPostFileName.end(), '\\', '/');
         f << "\t\"postfile\" : \"" << info.req->m_TempPostFileName << "\"," << endl;
+        std::replace(info.req->m_TempPutFileName.begin(), info.req->m_TempPutFileName.end(), '\\', '/');
         f << "\t\"putfile\" : \"" << info.req->m_TempPutFileName << "\"," << endl;
+        std::replace(info.req->m_RequestFile.begin(), info.req->m_RequestFile.end(), '\\', '/');
         f << "\t\"requestfile\" : \"" << info.req->m_RequestFile << "\"," << endl;
         f << "\t\"length\" : \"" << info.req->m_Len << "\"" << endl;
         f << "}" << endl;
@@ -895,7 +898,7 @@ void ThreadPool::threadpoolFunction(int id ){
 
                             try {
                                 //PyRun_SimpleString("print('Hello from thread!')");
-                                string scriptFile = "C:\\HttpdWin\\Pages\\"+req->m_RequestFile.substr(1, req->m_RequestFile.length() - 8);
+                                string scriptFile = "C:\\HttpdWin\\Pages\\"+req->m_RequestFile.substr(1, req->m_RequestFile.length());
                                 httpdlog("    ", "Executing script from location : " + scriptFile );
                                 info.req  = req;
                                 info.resp = resp;
