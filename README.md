@@ -1,6 +1,5 @@
 # HttpdWin
 ## Windows HTTP server with Python backend.    
-
 Reboot of my 2007 server, writing a cleaner code.   
 
 Compile using visual studio.      
@@ -29,7 +28,7 @@ As of now it runs only from C:\ drive
 Does not use MinGW neither does it use MSys or WSL.    
 
 
-### Last Updated : 02/12/2026 or In Indian format 12/02/2026      
+### Last Updated : 02/14/2026 or In Indian format 14/02/2026      
 
 
 ## How to setup HttpdWin
@@ -88,6 +87,11 @@ Does not use MinGW neither does it use MSys or WSL.
      wwwcookiedel      - Deletes a cookie    
      wwwsessionclear   - Clears all cookies of a session    
 
+     Python global variables:    
+     input             - The input file which contains all information regarding HTTP query request, including headers, cookie information and query information
+     sessionid         - The variable that contains the value of the current session ID.
+     
+
 #### Sample Python script file from HttpdWin.zip in the repo
      import HttpdWin    
      HttpdWin.wwwmime ("text/html")    
@@ -108,6 +112,20 @@ Does not use MinGW neither does it use MSys or WSL.
      HttpdWin.wwwprint("</body></html>")    
      HttpdWin.wwwprintend("");     
      HttpdWin.wwwsessionclear();     
+
+
+#### Log messages & it's interpretation     
+     Operational logs are stored in C:\\HttpdWin\httpdwin-errors.log     
+     Message level - 
+     ERROR - Error message      
+     WARN  - Warning message     
+     "    " / INFO - Informational message    
+     DEBUG - Debug message     
+     XTRA  - Additional Debug message    
+
+     Log message format:    
+     <Level>   : <Time in microseconds since Epoch (local time) > : <Thread ID, (Optional, If printed from thread)> : <Meaningful Log message>      
+     WARN  : 1771069602950973 : 37: Assigned thread completed job, rejoining threadpool      
 
 
 
