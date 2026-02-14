@@ -18,6 +18,8 @@ uint64_t ThreadPool::tempNum = 0;
 
 thread_local ThreadInfo info;
 thread_local int globalThreadId = -1;
+thread_local unsigned long long int httpResp200Ok = 0;
+thread_local unsigned long long int httpRespOther = 0;
 
 CookieManager cookieManager;
 
@@ -717,6 +719,7 @@ void ThreadPool::threadpoolFunction(int id ){
                                 httpdlog("ERROR", std::to_string(id) + ": SSL socket received 0 data 50 times, breaking out of loop");
                                 delete cmd;
                                 cmd = 0;
+                                httpRespOther++;
                                 break;
                             }
                             httpdlog("ERROR", std::to_string(id ) + ": SSL socket received 0 Bytes : " + std::to_string(nBytes) );
@@ -725,6 +728,7 @@ void ThreadPool::threadpoolFunction(int id ){
                             httpdlog("INFO", std::to_string(id ) + ": Received negative bytes : " + std::to_string(nBytes) );
                             delete cmd;
                             cmd =0;
+                            httpRespOther++;
                             break;
                         }
                     }
@@ -761,6 +765,7 @@ void ThreadPool::threadpoolFunction(int id ){
 					resp->m_DecodedUrl = req->m_DecodedUrl;
                     string extension = resp->m_Extension;
                     if ( ( extension != "" && extension != "script") && resp->m_Fhandle.is_open() ) {
+                        httpResp200Ok++;
                         resp->BuildResponseHeader(0);
                         size_t nHttpDataBytes = resp->m_ResponseHeaderLen + resp->getFileSize();
                         httpdlog("INFO", std::to_string(id) + ": Built response header for file access, bytes to send : " + to_string(nHttpDataBytes));
@@ -808,11 +813,11 @@ void ThreadPool::threadpoolFunction(int id ){
                             //httpdlog("DEBUG ", "---------------------------------------");
                         }
                         httpdlog("DEBUG ", std::to_string(id) + ": Total bytes sent including header: " + to_string(totalBytes));
-                        delete resp;
+                        delete resp; resp = 0;
                     } else {
 						//This is where code for scripting languages like PHP, Python, etc. will come in
                         delete resp; resp = 0;
-
+                        httpResp200Ok++;
                         HttpResponse* resp = HttpResponse::CreateSimpleResponse(req->m_RequestFile);
                         resp->m_DecodedUrl = req->m_DecodedUrl;
                         if (extension == "script" || extension == "" ) {
@@ -939,12 +944,11 @@ void ThreadPool::threadpoolFunction(int id ){
                             Py_EndInterpreter(tState);
                             PyThreadState_Swap(mainstate);
                             PyGILState_Release(gstate);
-                            delete resp;
-                            resp = 0;
+                            delete resp; resp = 0;
                         }
                         else {
                             //httpdlog("INFO",  std::to_string(id )+": " + (char *)resp->m_Buffer );
-
+                            httpRespOther++;
                             HttpResponse* resp = HttpResponse::CreateSimpleResponse(req->m_RequestFile);
                             resp->m_DecodedUrl = req->m_DecodedUrl;
                             httpdlog("INFO", std::to_string(id) + ": Building response header ");
@@ -1013,6 +1017,7 @@ void ThreadPool::threadpoolFunction(int id ){
                         httpdlog("ERROR", std::to_string(id) + ": Received negative bytes : " + std::to_string(nBytes));
                         delete cmd;
                         cmd = 0;
+                        httpRespOther++;
                         break;
                     }
                     else {
@@ -1020,6 +1025,7 @@ void ThreadPool::threadpoolFunction(int id ){
                             httpdlog("ERROR", std::to_string(id) + ": socket received 0 data 50 times, breaking out of loop");
                             delete cmd;
                             cmd = 0;
+                            httpRespOther++;
                             break;
                         }
                         httpdlog("XTRA", std::to_string(id) + ": socket received 0 Bytes : " + std::to_string(nBytes));
@@ -1060,7 +1066,7 @@ void ThreadPool::threadpoolFunction(int id ){
                     resp->m_DecodedUrl = req->m_DecodedUrl;
                     string extension = resp->m_Extension;
                     if ( (extension != "" && extension != "script") && resp->m_Fhandle.is_open() ) {
-
+                        httpResp200Ok++;
                         resp->BuildResponseHeader(0);
                         size_t nHttpDataBytes = resp->m_ResponseHeaderLen + resp->getFileSize();
                         httpdlog("INFO", std::to_string(id) + ": Built response header for file access, bytes to send : " + to_string(nHttpDataBytes));
@@ -1108,12 +1114,12 @@ void ThreadPool::threadpoolFunction(int id ){
                             //httpdlog("DEBUG ", "---------------------------------------");
                         }
                         httpdlog("DEBUG ", std::to_string(id) + ": Total bytes sent including header: " + to_string(totalBytes));
-                        delete resp;
+                        delete resp; resp = 0;
                     }
                     else {
                         //This is where code for scripting languages like PHP, Python, etc. will come in
                         delete resp; resp = 0;
-
+                        httpResp200Ok++;
                         HttpResponse* resp = HttpResponse::CreateSimpleResponse(req->m_RequestFile);
                         resp->m_DecodedUrl = req->m_DecodedUrl;
                         if (extension == "script" ||  extension == "") {
@@ -1248,7 +1254,7 @@ void ThreadPool::threadpoolFunction(int id ){
                             
                         }
                         else {
-
+                            httpRespOther++;
                             httpdlog("INFO", std::to_string(id) + ": Building response header ");
                             resp->m_StatusCode = "404";
                             resp->m_StatusMessage = "File not found";
@@ -1294,7 +1300,8 @@ void ThreadPool::threadpoolFunction(int id ){
                     delete req; req = 0;
                 }
             }
-            httpdlog("WARN", std::to_string(id) + ": Assigned thread completed job, rejoining threadpool");
+            httpdlog("WARN", std::to_string(id) + ": Assigned thread completed job, rejoining threadpool : 200 OK: "
+                + std::to_string(httpResp200Ok) + ", Other Codes: " + std::to_string(httpRespOther));
         } else {
             std::this_thread::sleep_for(std::chrono::microseconds(1000) );
         }
