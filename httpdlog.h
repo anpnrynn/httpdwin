@@ -15,5 +15,6 @@ using namespace std;
 extern int httpdloglevel;
 
 void httpdlog(const char *level, string info );
+void httpdlogHdr(const char* level, string info);
 
 #endif // DEBUGLOG_H_INCLUDED

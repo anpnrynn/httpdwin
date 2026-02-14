@@ -17,6 +17,7 @@ using namespace std::filesystem;
 
 
 string HttpResponse::pagesFolder = "C:\\HttpdWin\\Pages";
+extern thread_local int globalThreadId;
 
 map<string,string> HttpResponse::mimeTypes =
 {
@@ -114,6 +115,7 @@ HttpResponse::HttpResponse(string statusCode, string statusMessage, string conte
     m_ActualFileSize = 0;
     m_IsChunked = false;
     m_HttpData = m_Version + " " + statusCode + " " + statusMessage + " " + filename;
+    httpdlog("DEBUG", std::to_string(globalThreadId)+ ": Creating response object: " + to_string((unsigned long long int) this));
 }
 
 HttpResponse::~HttpResponse() {
@@ -123,7 +125,7 @@ HttpResponse::~HttpResponse() {
         m_CookieList->clear();
         m_CookieList = 0;
     }
-    httpdlog("DEBUG", "Deleting response object: " + to_string((unsigned long long int) this));
+    httpdlog("DEBUG", std::to_string(globalThreadId) + ": Deleting response object: " + to_string((unsigned long long int) this));
 }
 
 string HttpResponse::filenameCorrection(string filename ){
@@ -175,21 +177,21 @@ bool HttpResponse::isTextFile( string extension ){
 }
 
 HttpResponse *HttpResponse::CreateSimpleResponse( string filename  ){
-    httpdlog("INFO:", "Creating simple response ");
+    httpdlog("XTRA:", std::to_string(globalThreadId) + ": Creating simple response ");
     HttpResponse *resp = new HttpResponse("200", "OK", "", "text/plain", filename );
     resp->m_ContentLength = std::to_string( (resp->m_HttpData).length() );
     return resp;
 }
 
 HttpResponse *HttpResponse::CreateSimpleResponse( string code, string smsg ){
-    httpdlog("INFO:", "Creating simple response status code ");
+    httpdlog("XTRA:", std::to_string(globalThreadId) + ": Creating simple response status code ");
     HttpResponse *resp = new HttpResponse(code, smsg , "", "text/plain", "" );
     resp->m_ContentLength = std::to_string( (resp->m_HttpData).length() );
     return resp;
 }
 
 HttpResponse *HttpResponse::CreateStringResponse( string str, string mime ){
-    httpdlog("INFO:", "Creating simple response string ");
+    httpdlog("XTRA:", std::to_string(globalThreadId) + ": Creating simple response string ");
     HttpResponse *resp = new HttpResponse("200", "OK", "", mime, "" );
     resp->m_HttpData = str;
     resp->m_ContentLength = std::to_string( (resp->m_HttpData).length() );
@@ -197,10 +199,10 @@ HttpResponse *HttpResponse::CreateStringResponse( string str, string mime ){
 }
 
 HttpResponse *HttpResponse::CreateFileResponse( string filename ){
-    httpdlog("INFO:", "Creating simple response file ");
+    httpdlog("XTRA:", std::to_string(globalThreadId) + ": Creating simple response file ");
     HttpResponse *resp = new HttpResponse("200", "OK", "", "text/plain" , filename );
     resp->m_ActualFile = resp->filenameCorrection(filename );
-    httpdlog("INFO:", "Retrieving file : "+ filename );
+    httpdlog("DEBUG:", std::to_string(globalThreadId) + ": Retrieving file : "+ filename );
 
     string extension   = filenameExtension (filename );
     resp->m_Extension  = extension;
@@ -208,21 +210,21 @@ HttpResponse *HttpResponse::CreateFileResponse( string filename ){
     resp->m_ContentType = mime;
 
     //Change to XTRA
-    httpdlog("INFO:", "Accessing file : "+ resp->m_ActualFile+", "+extension+", "+resp->m_ContentType );
+    httpdlog("INFO:", std::to_string(globalThreadId) + ": Accessing file : "+ resp->m_ActualFile+", "+extension+", "+resp->m_ContentType );
 
     try{
         resp->m_ActualFileSize = std::filesystem::file_size( resp->m_ActualFile );
-        httpdlog("INFO:", "Size of accessed file : "+ std::to_string( resp->m_ActualFileSize ) );
+        httpdlog("INFO:", std::to_string(globalThreadId) + ": Size of accessed file : "+ std::to_string( resp->m_ActualFileSize ) );
     } catch(exception e ){
         resp->m_ActualFileSize = 0;
     }
 
     bool isText = isTextFile("." + extension );
     if( isText ){
-        httpdlog("INFO", "Text file is being read ");
+        httpdlog("INFO", std::to_string(globalThreadId) + ": Text file is being read ");
         resp->m_Fhandle.open( resp->m_ActualFile, ios::in|ios::binary );
     } else {
-        httpdlog("INFO", "Binary file is being read ");
+        httpdlog("INFO", std::to_string(globalThreadId) + ": Binary file is being read ");
         resp->m_Fhandle.open( resp->m_ActualFile, ios::in|ios::binary );
     }
 
@@ -252,6 +254,12 @@ void HttpResponse::BuildResponseHeader( std::map<string,string> *headers ){
     n++;
     strcpy((char*)&m_Buffer[n], m_StatusMessage.c_str());
     n+= m_StatusMessage.length();
+
+	extern int httpdloglevel;
+    if (httpdloglevel < 3)
+		httpdlog("WARN", std::to_string(globalThreadId) + ": Response header: " + m_Version + " " + m_StatusCode + " " + m_StatusMessage);
+    else
+	    httpdlog("DEBUG", std::to_string(globalThreadId) + ": Response header: " + m_Version + " " + m_StatusCode + " " + m_StatusMessage + " <- " +m_DecodedUrl);
 
     strcat((char*)&m_Buffer[n], "\r\n");
     n += 2;

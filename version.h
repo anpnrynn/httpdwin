@@ -2,8 +2,8 @@
 #ifndef VERSION_H_INCLUDED
 #define VERSION_H_INCLUDED
 
-#define HTTPDWIN_NAME  "httpdwin"
-#define HTTPDWIN_VERSION "1.25.06"
+#define HTTPDWIN_NAME  "HttpdWin"
+#define HTTPDWIN_VERSION "2026.02.14.Beta"
 
 const char name[] = HTTPDWIN_NAME;
 const char version[] = HTTPDWIN_VERSION;

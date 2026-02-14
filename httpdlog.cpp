@@ -2,6 +2,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 #include <httpdlog.h>
 #include <mutex>
+#include <chrono>
 using namespace std;
 
 #define _CRT_SECURE_NO_WARNINGS
@@ -11,36 +12,52 @@ int httpdloglevel = 4;
 mutex logmutex;
 
 void httpdlog(const char *level, string info ){
+    auto timenow = std::chrono::system_clock::now();
+    auto duration = timenow.time_since_epoch(); // duration since epoch
+    auto micros = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
+
     logmutex.lock();
     switch(level[0]){
     case 'D':
         if( httpdloglevel >= 3)
-            cerr<<"DEBUG"<<" : "<<info<<endl;
+            cerr<<"DEBUG"<<" : "<<micros<<" : " << info << endl;
         break;
     case 'I':
         if( httpdloglevel >= 2)
-            cerr<<"INFO"<<"  : "<<info<<endl;
+            cerr<<"INFO"<<"  : " << micros << " : " <<info<<endl;
         break;
     case 'W':
         if( httpdloglevel >= 1)
-            cerr<<"WARN"<<"  : "<<info<<endl;
+            cerr<<"WARN"<<"  : " << micros << " : " <<info<<endl;
         break;
     case 'E':
         if( httpdloglevel >= 0)
-            cerr<<"ERROR"<<" : "<<info<<endl;
+            cerr<<"ERROR"<<" : " << micros << " : " <<info<<endl;
         break;
     case 'X':
         if( httpdloglevel >= 4)
-            cerr<<"XTRA "<<" : "<<info<<endl;
+            cerr<<"XTRA "<<" : " << micros << " : " <<info<<endl;
         break;
     case ' ':
         if( httpdloglevel >= 0)
-            cerr<<"     "<<" : "<<info<<endl;
+            cerr<<"     "<<" : " << micros << " : " <<info<<endl;
         break;
     default:
         if( httpdloglevel >= 4)
-            cerr<<"     "<<" : "<<info<<endl;
+            cerr<<"     "<<" : " << micros << " : " <<info<<endl;
         break;
     }
     logmutex.unlock();
+    cerr.flush();
 }
+
+
+void httpdlogHdr(const char* level, string info) {
+
+    logmutex.lock();
+    if (httpdloglevel >= 4)
+        cerr << "Header " << " : \n"<< info << endl;
+    logmutex.unlock();
+    cerr.flush();
+}
+

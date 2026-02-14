@@ -16,6 +16,7 @@ using namespace std;
 typedef vector<string> VectorStr;
 extern std::map<string,string> httpHeaders;
 
+extern thread_local int globalThreadId;
 
 NameMimeValues & NameMimeValues::operator =( const NameMimeValues& cp){
     m_Name  = cp.m_Name;
@@ -30,10 +31,11 @@ HttpRequest::HttpRequest(){
     m_FieldCount = 0;
     m_HttpHeaderComplete = false;
     m_CookieList = 0;
+    httpdlog("DEBUG", std::to_string(globalThreadId) + ": Creating request object: " + to_string((unsigned long long int) this));
 }
 
 HttpRequest::~HttpRequest(){
-    httpdlog("DEBUG", "Deleting request object: " + to_string((unsigned long long int) this));
+    httpdlog("DEBUG", std::to_string(globalThreadId) + ": Deleting request object: " + to_string((unsigned long long int) this));
     m_Len = 0;
     m_cLen = 0;
 }
@@ -63,7 +65,7 @@ void HttpRequest::parseQuerystring(){
         m_RequestFile += m_DecodedUrl[i++];
     }
     i++;
-    httpdlog("WARN", "Request File = " + m_RequestFile );
+    httpdlog("WARN", std::to_string(globalThreadId) + ": Request File = " + m_RequestFile );
     NameMimeValues *nmv = new NameMimeValues;
     nmv->m_Name = "";
     nmv->m_Mime = "";
@@ -96,9 +98,9 @@ void HttpRequest::parseQuerystring(){
     }
 
     Query::iterator qi = query.begin();
-    httpdlog("DEBUG", "Query String = ");
+    httpdlog("DEBUG", std::to_string(globalThreadId) + ": Query String = ");
     while( qi != query.end() ){
-        httpdlog("DEBUG", qi->first + "  : " +(*(qi->second)).m_Value );
+        httpdlog("DEBUG", std::to_string(globalThreadId) + ": " + qi->first + "  : " +(*(qi->second)).m_Value );
         qi++;
     }
 }
@@ -109,13 +111,13 @@ void HttpRequest::parsePostDataQueryString(){
 void HttpRequest::readHttpReqLine( HttpRequest *req, string &line ){
     size_t m    = line.find(' ', 0 );
     if (m == std::string::npos){
-        httpdlog("WARN","HTTP header request line malformed (Method part)");
+        httpdlog("WARN", std::to_string(globalThreadId) + ": HTTP header request line malformed (Method part)");
         return;
     }
     req->m_Method  = line.substr(0,m );
     size_t n       = line.find(' ', m+1);
     if (n == std::string::npos){
-        httpdlog("WARN","HTTP header request line malformed (Url part)");
+        httpdlog("WARN", std::to_string(globalThreadId) + ": HTTP header request line malformed (Url part)");
         return;
     }
     //cerr<<m<<", "<<n<<endl;
@@ -124,7 +126,7 @@ void HttpRequest::readHttpReqLine( HttpRequest *req, string &line ){
 
     req->decodeUrl();
     req->parseQuerystring();
-    httpdlog(" ", req->m_Method +"\n        "+req->m_Version +"\n        "+ req->m_EncodedUrl+"\n        "+req->m_DecodedUrl);
+    httpdlog("INFO", std::to_string(globalThreadId) + ": " + req->m_Method +" "+req->m_Version +" "+ req->m_EncodedUrl+" -> "+req->m_DecodedUrl);
 }
 
 CookieList* HttpRequest::readCookies ( HttpRequest *req, string &line ){
@@ -144,7 +146,7 @@ CookieList* HttpRequest::readCookies ( HttpRequest *req, string &line ){
             c.m_name = cookieName;
             c.m_value = cookieValue;
 			cookieList->push_back(c);
-            httpdlog("DEBUG", "Cookie: " + cookieName + " -> " + cookieValue);
+            httpdlog("DEBUG", std::to_string(globalThreadId) + ": Cookie: " + cookieName + " -> " + cookieValue);
             cookieName = "";
             cookieValue = "";
             readingName = true;
@@ -162,7 +164,7 @@ CookieList* HttpRequest::readCookies ( HttpRequest *req, string &line ){
         c.m_name = cookieName;
         c.m_value = cookieValue;
         cookieList->push_back(c);
-        httpdlog("DEBUG", "Cookie: " + cookieName + " -> " + cookieValue);
+        httpdlog("DEBUG", std::to_string(globalThreadId) + ": Cookie: " + cookieName + " -> " + cookieValue);
     }
 
 	CookieList::iterator it = cookieList->begin();
@@ -188,7 +190,7 @@ void HttpRequest::readHeaderLine ( HttpRequest *req, string &line ){
     //httpdlog("WARN","HTTP header field line processing");
     size_t m    = line.find(':', 0 );
     if (m == std::string::npos){
-        httpdlog("WARN","HTTP header field line empty or malformed : "+line);
+        httpdlog("WARN", std::to_string(globalThreadId) + ": HTTP header field line empty or malformed : "+line);
         return;
     }
     string field     = line.substr(0, m );
@@ -211,7 +213,7 @@ void HttpRequest::readHeaderLine ( HttpRequest *req, string &line ){
     if (field == "Content-Length") {
 		
         req->m_cLen = atoi(line.substr(m + 2, line.length() - 1).c_str());
-        httpdlog("DEBUG", "Post or Put data present , Content-Length = " + to_string(req->m_cLen)) ;
+        httpdlog("DEBUG", std::to_string(globalThreadId) + ": Post or Put data present , Content-Length = " + to_string(req->m_cLen)) ;
     }
 
     if( fieldName != "" ){
@@ -223,9 +225,9 @@ void HttpRequest::readHeaderLine ( HttpRequest *req, string &line ){
             req->m_CookieList = readCookies(req, fieldValue);
         }
 
-        httpdlog("DEBUG", req->m_HeaderNames[req->m_FieldCount-1] + " -> "+ req->m_Headers[req->m_FieldCount-1]);
+        httpdlog("DEBUG", std::to_string(globalThreadId) + ": " + req->m_HeaderNames[req->m_FieldCount-1] + " -> "+ req->m_Headers[req->m_FieldCount-1]);
     } else {
-        httpdlog("XTRA","HTTP header field unknown : " + field );
+        httpdlog("XTRA", std::to_string(globalThreadId) + ": HTTP header field unknown : " + field );
     }
 }
 

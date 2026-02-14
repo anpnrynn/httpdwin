@@ -33,7 +33,7 @@ using namespace std;
 typedef map<string, string> Config;
 
 Config httpdwinConfig;
-
+extern thread_local int globalThreadId;
 
 int parseConfig(){
     fstream f;
@@ -66,7 +66,7 @@ int parseConfig(){
 extern thread_local ThreadInfo info;
 
 static PyObject* wwwprint(PyObject* self, PyObject* args) {
-    httpdlog("DEBUG", "wwwprint called ");
+    httpdlog("XTRA", std::to_string(globalThreadId) + ": wwwprint called ");
     char* strval = 0;
     Py_ssize_t  strlength = 0;
     if (!PyArg_ParseTuple(args, "s#", &strval, &strlength)) {
@@ -78,7 +78,7 @@ static PyObject* wwwprint(PyObject* self, PyObject* args) {
 }
 
 static PyObject* wwwbytesprint(PyObject* self, PyObject* args) {
-    httpdlog("DEBUG", "wwwbyteprint called ");
+    httpdlog("XTRA", std::to_string(globalThreadId) + ": wwwbyteprint called ");
     char* bytesval = 0;
     Py_ssize_t  byteslength = 0;
     if (!PyArg_ParseTuple(args, "y#", &bytesval, &byteslength)) {
@@ -90,7 +90,7 @@ static PyObject* wwwbytesprint(PyObject* self, PyObject* args) {
 }
 
 static PyObject* wwwprintend(PyObject* self, PyObject* args) {
-    httpdlog("DEBUG", "wwwprintend called ");
+    httpdlog("XTRA", std::to_string(globalThreadId) + ": wwwprintend called ");
     char* strval  = 0;
     Py_ssize_t  strlength = 0;
     if (!PyArg_ParseTuple(args, "s#", &strval, &strlength)) {
@@ -102,14 +102,14 @@ static PyObject* wwwprintend(PyObject* self, PyObject* args) {
 }
 
 static PyObject* wwwheadercomplete(PyObject* self, PyObject* args) {
-    httpdlog("DEBUG", "wwwheadercomplete called ");
+    httpdlog("XTRA", std::to_string(globalThreadId) + ": wwwheadercomplete called ");
     ThreadPool::sendHttpHeader();
     Py_RETURN_NONE;
 }
 
 
 static PyObject* wwwmime(PyObject* self, PyObject* args) {
-    httpdlog("DEBUG", "wwwmime called ");
+    httpdlog("XTRA", std::to_string(globalThreadId) + ": wwwmime called ");
     char* strval = 0;
     Py_ssize_t strlength = 0;
     if (!PyArg_ParseTuple(args, "s#", &strval, &strlength)) {
@@ -123,7 +123,7 @@ static PyObject* wwwmime(PyObject* self, PyObject* args) {
 }
 
 static PyObject* wwwheaderadd(PyObject* self, PyObject* args) {
-    httpdlog("DEBUG", "wwwheaderadd called ");
+    httpdlog("XTRA", std::to_string(globalThreadId) + ": wwwheaderadd called ");
     char* strval = 0;
     Py_ssize_t  strlength = 0;
     if (!PyArg_ParseTuple(args, "s#", &strval, &strlength)) {
@@ -135,7 +135,7 @@ static PyObject* wwwheaderadd(PyObject* self, PyObject* args) {
 }
 
 static PyObject* wwwcookieset(PyObject* self, PyObject* args) {
-    httpdlog("DEBUG", "wwwcookieset called ");
+    httpdlog("XTRA", std::to_string(globalThreadId) + ": wwwcookieset called ");
     static char* empty = (char *)"";
     uint64_t maxAge = 0;
     int secure = 0, httpOnly = 0;
@@ -160,7 +160,7 @@ static PyObject* wwwcookieset(PyObject* self, PyObject* args) {
 }
 
 static PyObject* wwwcookiedel(PyObject* self, PyObject* args) {
-    httpdlog("DEBUG", "wwwcookiedel called ");
+    httpdlog("XTRA", std::to_string(globalThreadId) + ": wwwcookiedel called ");
     static char* empty = (char*)"";
     char* name = 00;
     Py_ssize_t  namelength = 0, valuelength, expireslength, pathlength, domainlength;
@@ -175,7 +175,7 @@ static PyObject* wwwcookiedel(PyObject* self, PyObject* args) {
 }
 
 static PyObject* wwwsessionclear(PyObject* self, PyObject* args) {
-    httpdlog("DEBUG", "wwwsessionclear called ");
+    httpdlog("XTRA", std::to_string(globalThreadId) + ": wwwsessionclear called ");
     ThreadPool::clearHttpSession();
     Py_RETURN_NONE;
 }
@@ -208,11 +208,30 @@ PyMODINIT_FUNC PyInit_HttpdWin(void) {
 
 int main()
 {
-    httpdlog(" ","Starting up...");
+    std::ofstream errorLogFile("C:\\HttpdWin\\httpdwin-errors.log",ios::app);
+    std::streambuf* origCerrBuf = std::cerr.rdbuf();
+    std::cerr.rdbuf(errorLogFile.rdbuf());
+
+    httpdlog(" ", "<================================================================>");
+    httpdlog(" ", "<================================================================>");
+    httpdlog(" ", "<================================================================>");
+    httpdlog(" ", "Launching... ");
+    httpdlog(" ", "10");
+    httpdlog(" ", "9");
+    httpdlog(" ", "8");
+    httpdlog(" ", "7");
+    httpdlog(" ", "6");
+    httpdlog(" ", "5");
+    httpdlog(" ", "4");
+    httpdlog(" ", "3");
+    httpdlog(" ", "2");
+    httpdlog(" ", "1");
+    httpdlog(" ", "0");
+    httpdlog(" ", "HttpdWin Server with Python3 backend - Starting up...");
 
     parseConfig();
 
-    httpdlog(" ", "Configuration read");
+    httpdlog("INFO", "Configuration read");
     SOCKET srv = 0, client = 0;
     SOCKET srv6 = 0, client6 = 0;
     SOCKET sslsrv =0, sslclient = 0;
@@ -470,6 +489,8 @@ int main()
 
     ThreadPool *tp = new ThreadPool(nThreads);
     int saveCount = 0;
+    char ipAddressStr[INET6_ADDRSTRLEN];
+
     while ( true ) {
         fflush ( stderr );
 
@@ -499,16 +520,24 @@ int main()
             if (pollfds[0].revents & POLLIN && transport & 0x01 ) {
                 socklen_t addrlen = sizeof(sockaddr_in);
                 if ((client = accept(srv, (sockaddr*)&clientAddr, &addrlen))) {
-                    httpdlog("INFO", "Assigning IPv4 task ");
-                    tp->assignTaskRr(new ThreadCommand(WORK, client, false, false, false, 0, "", 0));
+                    ThreadCommand* t = new ThreadCommand(WORK, client, false, false, false, 0, "", 0);
+                    ipAddressStr[0] = 0;
+                    inet_ntop(AF_INET, &clientAddr.sin_addr, ipAddressStr, sizeof(ipAddressStr));
+                    ipAddressStr[INET6_ADDRSTRLEN - 1] = 0;
+                    httpdlog("WARN", "Assigning task NON-SSL ipv4  to threadpool : " + std::to_string((unsigned long long int)t) + " : " +ipAddressStr + ": " + std::to_string( htons(clientAddr.sin_port) ) ) ;
+                    tp->assignTaskRr(t);
                 }
             }
 
             if (pollfds[1].revents & POLLIN && transport & 0x01 ) {
                 socklen_t addrlen = sizeof(sockaddr_in6);
                 if ((client6 = accept(srv6, (sockaddr*)&clientAddr6, &addrlen))) {
-                    httpdlog("INFO", "Assigning IPv6 task ");
-                    tp->assignTaskRr(new ThreadCommand(WORK, client6, false, false, true, 0, "", 0));
+                    ThreadCommand* t = new ThreadCommand(WORK, client6, false, false, true, 0, "", 0);
+                    ipAddressStr[0] = 0;
+                    inet_ntop(AF_INET6, &clientAddr6.sin6_addr, ipAddressStr, sizeof(ipAddressStr));
+                    ipAddressStr[INET6_ADDRSTRLEN - 1] = 0;
+                    httpdlog("WARN", "Assigning task NON-SSL ipv6  to threadpool : " + std::to_string((unsigned long long int)t) + " : " + ipAddressStr + ": " + std::to_string(htons(clientAddr.sin_port)));
+                    tp->assignTaskRr(t);
                 }
             }
 
@@ -572,9 +601,14 @@ int main()
                     }
 
                     if (ssl && isSslAccepted) {
-                        httpdlog("INFO", "Assigning task SSL ipv4 ");
+                        
                         //ThreadCommand *t = new ThreadCommand(WORK, sslclient, true, isSslAccepted, false, 0, "", ssl);
                         ThreadCommand* t = new ThreadCommand(WORK, sslclient, true, isSslAccepted, false, 0, "", ssl);
+                        //httpdlog("WARN", "Assigning task SSL ipv4 to threadpool : " + std::to_string((unsigned long long int)t));
+                        ipAddressStr[0] = 0;
+                        inet_ntop(AF_INET, &sslclientAddr.sin_addr, ipAddressStr, sizeof(ipAddressStr));
+                        ipAddressStr[INET6_ADDRSTRLEN - 1] = 0;
+                        httpdlog("WARN", "Assigning task SSL ipv4  to threadpool : " + std::to_string((unsigned long long int)t) + " : " + ipAddressStr + ": " + std::to_string(htons(clientAddr.sin_port)));
                         tp->assignTaskRr(t);
                     }
                 }
@@ -641,8 +675,13 @@ int main()
 
 
                     if (ssl6 && isSslAccepted) {
-                        httpdlog("INFO", "Assigning task SSL ipv6 ");
+                        
                         ThreadCommand* t = new ThreadCommand(WORK, sslclient6, true, isSslAccepted, true, 0, "", ssl6);
+                        //httpdlog("WARN", "Assigning task SSL ipv6 to threadpool  : " + std::to_string((unsigned long long int)t));
+                        ipAddressStr[0] = 0;
+                        inet_ntop(AF_INET6, &sslclientAddr6.sin6_addr, ipAddressStr, sizeof(ipAddressStr));
+                        ipAddressStr[INET6_ADDRSTRLEN - 1] = 0;
+                        httpdlog("WARN", "Assigning task SSL ipv6  to threadpool : " + std::to_string((unsigned long long int)t) + " : " + ipAddressStr + ": " + std::to_string(htons(clientAddr.sin_port)));
                         tp->assignTaskRr(t);
                     }
                 }
@@ -657,13 +696,16 @@ int main()
             }
             std::this_thread::sleep_for(std::chrono::microseconds(1));
         } else {
-            httpdlog ( " ", "Looping in poll error" );
+            httpdlog ( " ", "main(): Looping in poll error" );
             std::this_thread::sleep_for(std::chrono::microseconds(10));
         }
     }
 
     Py_END_ALLOW_THREADS
     Py_Finalize();
+
+    std::cerr.rdbuf(origCerrBuf);
+    errorLogFile.close();
 
     return 0;
 }
