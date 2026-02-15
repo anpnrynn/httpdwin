@@ -70,14 +70,23 @@ There may be memory leaks.
 
 
 #### Creating Certificates and Key files:
+     The following certificate and key files are required:
+     httpdwinkey.pem
+     httpdwinpub.pem     
+     httpdwincert.pem     
+     httpdwinkey6.pem      
+     httpdwinpub6.pem      
+     httpdwincert6.pem   
+     
      openssl.exe req -x509 -newkey rsa:4096 -keyout httpdwinkey.pem -out httpdwincert.pem -sha256 -days 3650 -config openssl.cnf      
      openssl.exe x509 -pubkey -noout -in httpdwincert.pem  > httpdwinpub.pem      
-     Copy httpdwinkey.pem  C:\HttpdWin\Certs\httpdwinkey.pem    
-     Copy httpdwinpub.pem  C:\HttpdWin\Certs\httpdwinpub.pem     
-     Copy httpdwincert.pem C:\HttpdWin\Certs\httpdwincert.pem     
-     Copy httpdwinkey.pem  C:\HttpdWin\Certs\httpdwinkey6.pem      
-     Copy httpdwinpub.pem  C:\HttpdWin\Certs\httpdwinpub6.pem      
-     Copy httpdwincert.pem C:\HttpdWin\Certs\httpdwincert6.pem     
+     
+     copy httpdwinkey.pem  C:\HttpdWin\Certs\httpdwinkey.pem    
+     copy httpdwinpub.pem  C:\HttpdWin\Certs\httpdwinpub.pem     
+     copy httpdwincert.pem C:\HttpdWin\Certs\httpdwincert.pem     
+     copy httpdwinkey.pem  C:\HttpdWin\Certs\httpdwinkey6.pem      
+     copy httpdwinpub.pem  C:\HttpdWin\Certs\httpdwinpub6.pem      
+     copy httpdwincert.pem C:\HttpdWin\Certs\httpdwincert6.pem     
 
 
 
