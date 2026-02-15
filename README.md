@@ -33,7 +33,7 @@ There may be memory leaks.
 
 ## How to setup HttpdWin
 #### Setting up the program 
-     Download the release from release link.
+     Download the release package from release link.
      Uncompress to C:\Httpdwin\
      Make sure all .exe, libs and .dll fils are in C:\HttpdWin\Bin\
 
@@ -65,7 +65,11 @@ There may be memory leaks.
      #debug level : 1-5    
      debuglevel=1     
      #transport mechanism : secure / non-secure / both     
-     transport=both      
+     transport=both         
+     #session cookie name     
+     session=SID     
+     #max age     
+     maxage=3600     
 
 
 
