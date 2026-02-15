@@ -613,7 +613,9 @@ string ThreadPool::generateJsonFile() {
             it++;
             i++;
         }
-        f << "\t}," << endl << "\n\t\"url\" : \"" <<info.req->m_EncodedUrl<<"\"," << endl;
+        f << "\t}," << endl << endl;;
+        f << "\t\"url\" : \"" << info.req->m_EncodedUrl << "\"," << endl;
+        f << "\t\"decoded_url\" : \"" << info.req->m_DecodedUrl << "\"," << endl;
         std::replace(jsonfile.begin(), jsonfile.end(), '\\', '/');
         f << "\t\"jsonfile\" : \"" << jsonfile << "\"," << endl;
         f << "\t\"method\" : \"" << info.req->m_Method << "\"," << endl;

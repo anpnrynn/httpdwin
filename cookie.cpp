@@ -275,7 +275,7 @@ void CookieManager::closeFile() {
 		m_file.close();
 	}
 	else {
-		httpdlog("ERROR", "Error file is not open ");
+		httpdlog("ERROR", "Error file is not open in closeFile ");
 	}
 }
 
@@ -300,7 +300,7 @@ void CookieManager::saveAll() {
 		//m_file.close();
 	}
 	else {
-		//httpdlog("INFO", "Error file is not open ");
+		httpdlog("INFO", "Error file is not open in saveAll ");
 	}
 }
 

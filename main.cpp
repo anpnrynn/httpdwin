@@ -208,9 +208,10 @@ PyMODINIT_FUNC PyInit_HttpdWin(void) {
 
 int main()
 {
-    std::ofstream errorLogFile("C:\\HttpdWin\\httpdwin-errors.log",ios::app);
-    std::streambuf* origCerrBuf = std::cerr.rdbuf();
+    ofstream errorLogFile("C:\\HttpdWin\\httpdwin-errors.log",ios::app);
+    streambuf* origCerrBuf = std::cerr.rdbuf();
     std::cerr.rdbuf(errorLogFile.rdbuf());
+    extern mutex logmutex;
 
     httpdlog(" ", "<================================================================>");
     httpdlog(" ", "<================================================================>");
