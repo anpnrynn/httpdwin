@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <filesystem>
 using namespace std;
 
 mutex *ThreadPool::threadmutexes;
@@ -486,6 +487,16 @@ void ThreadPool::clearHttpSession() {
         delete info.resp->m_CookieList;
         info.resp->m_CookieList = 0;
     }
+    if (info.resp->m_jsonFile != "") {
+        try {
+            std::filesystem::remove(info.resp->m_jsonFile);
+            httpdlog("DEBUG", std::to_string(globalThreadId) + ": Deleted json file : " + info.resp->m_jsonFile);
+        }
+        catch (const std::filesystem::filesystem_error& e) {
+            httpdlog("ERROR", std::to_string(globalThreadId) + ": Failed to delete json file : " + info.resp->m_jsonFile + ", error: " + e.what());
+        }
+		info.resp->m_jsonFile = "";
+    }
 }
 
 void ThreadPool::simpleChunkedResponse(int id , ThreadCommand *cmd, HttpResponse *resp, const char *simplestring) {
@@ -587,6 +598,7 @@ string ThreadPool::generateJsonFile() {
     ofstream f;
     string sessionid = info.resp->m_CookieList->size() > 0 ? info.resp->m_CookieList->front().m_gname : "";
     string jsonfile = "C:\\HttpdWin\\Temp\\_____" + sessionid.substr(0,32) +"_____" + ".json";
+    info.resp->m_jsonFile = jsonfile;
     httpdlog("DEBUG", std::to_string(globalThreadId) + ": Opening input file for script " + jsonfile + ", " + sessionid);
     f.open(jsonfile, ios::out | ios::trunc);
     if (f.is_open()) {
@@ -840,7 +852,7 @@ void ThreadPool::threadpoolFunction(int id ){
                                         cl->push_back(*it1);
                                     }
                                     status = cookieManager.add(c->m_gname, cl);
-                                    cookieManager.print();
+                                    //cookieManager.print();
                                     if( status == false) {
                                         //httpdlog("DEBUG", "Cookie present for : " + c->m_gname +", " + c->m_value);
                                         resp->m_CookieList->clear();
@@ -855,16 +867,16 @@ void ThreadPool::threadpoolFunction(int id ){
                                 if (it != req->m_CookieList->end()) {
                                     CookieList* cl = 0;
                                     cl = cookieManager.get((*it).m_gname);
-                                    cookieManager.print();
+                                    //cookieManager.print();
 
                                     if (cl != 0) {
-                                        httpdlog("DEBUG", std::to_string(id) + ": CookieMap was present for : " + (*it).m_gname);
+                                        httpdlog("DEBUG", std::to_string(id) + ": Cookie present in Map : " + (*it).m_gname);
                                         for (auto it1 = cl->begin(); it1 != cl->end(); it1++) {
                                             resp->m_CookieList->push_back(*it1);
                                         }
                                     }
                                     else {
-                                        httpdlog("DEBUG", std::to_string(id) + ": CookieMap was not present for : " + (*it).m_gname +", " + (*it).m_value);
+                                        httpdlog("DEBUG", std::to_string(id) + ": Cookie not present in Map : " + (*it).m_gname +", " + (*it).m_value);
                                         Cookie* c = new Cookie("", "", "");
                                         cl = new CookieList();
                                         bool status = false;
@@ -921,9 +933,9 @@ void ThreadPool::threadpoolFunction(int id ){
                                 if (fp) {
                                     PyObject* main_module = PyImport_AddModule("__main__");
                                     PyObject* main_dict = PyModule_GetDict(main_module);
-                                    req->m_jsonfile = resp->m_CookieList->size() > 0 ? resp->m_CookieList->front().m_gname : "";
+                                    req->m_jsonFile = resp->m_CookieList->size() > 0 ? resp->m_CookieList->front().m_gname : "";
                                     string jsonfile = generateJsonFile();
-                                    PyObject* py_value = PyUnicode_FromString(req->m_jsonfile.c_str());
+                                    PyObject* py_value = PyUnicode_FromString(req->m_jsonFile.c_str());
                                     PyObject* py_value2 = PyUnicode_FromString(jsonfile.c_str());
                                     PyDict_SetItemString(main_dict, "sessionid", py_value);
                                     PyDict_SetItemString(main_dict, "input", py_value2);
@@ -1144,7 +1156,7 @@ void ThreadPool::threadpoolFunction(int id ){
                                         cl->push_back(*it1);
                                     }
                                     status = cookieManager.add(c->m_gname, cl);
-                                    cookieManager.print();
+                                    //cookieManager.print();
                                     if (status == false) {
                                         //httpdlog("DEBUG", "Cookie present for : " + c->m_gname +", " + c->m_value);
                                         resp->m_CookieList->clear();
@@ -1159,16 +1171,16 @@ void ThreadPool::threadpoolFunction(int id ){
                                 if (it != req->m_CookieList->end()) {
                                     CookieList* cl = 0;
                                     cl = cookieManager.get((*it).m_gname);
-                                    cookieManager.print();
+                                    //cookieManager.print();
 
                                     if (cl != 0) {
-                                        httpdlog("DEBUG", std::to_string(id) + ": CookieMap was present for : " + (*it).m_gname);
+                                        httpdlog("DEBUG", std::to_string(id) + ": Cookie present in Map : " + (*it).m_gname);
                                         for (auto it1 = cl->begin(); it1 != cl->end(); it1++) {
                                             resp->m_CookieList->push_back(*it1);
                                         }
                                     }
                                     else {
-                                        httpdlog("DEBUG", std::to_string(id) + ": CookieMap was not present for : " + (*it).m_gname + ", " + (*it).m_value);
+                                        httpdlog("DEBUG", std::to_string(id) + ": Cookie not present in Map : " + (*it).m_gname + ", " + (*it).m_value);
                                         Cookie* c = new Cookie("", "", "");
                                         cl = new CookieList();
                                         bool status = false;
@@ -1223,9 +1235,9 @@ void ThreadPool::threadpoolFunction(int id ){
                                 if (fp) {
                                     PyObject* main_module = PyImport_AddModule("__main__");
                                     PyObject* main_dict = PyModule_GetDict(main_module);
-                                    req->m_jsonfile = resp->m_CookieList->size() > 0 ? resp->m_CookieList->front().m_gname : "";
+                                    req->m_jsonFile = resp->m_CookieList->size() > 0 ? resp->m_CookieList->front().m_gname : "";
                                     string jsonfile = generateJsonFile();
-                                    PyObject* py_value  = PyUnicode_FromString(req->m_jsonfile.c_str());
+                                    PyObject* py_value  = PyUnicode_FromString(req->m_jsonFile.c_str());
                                     PyObject* py_value2 = PyUnicode_FromString(jsonfile.c_str());
                                     PyDict_SetItemString(main_dict, "sessionid", py_value);
                                     PyDict_SetItemString(main_dict, "input", py_value2);

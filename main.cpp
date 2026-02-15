@@ -52,7 +52,7 @@ int parseConfig(){
             if( value[value.length()-1] == '\r' )
                 value.pop_back();
             if( name != "" && value != "" ){
-                httpdwinConfig[name ]= value;
+                httpdwinConfig[name]= value;
                 httpdlog("INFO", name +" = "+ value + " value read." );
             }
         }
@@ -154,6 +154,7 @@ static PyObject* wwwcookieset(PyObject* self, PyObject* args) {
             expires = empty;
         if (domainlength <= 0)
             domain = empty;
+		httpdlog("XTRA", std::to_string(globalThreadId) + ": wwwcookieset called with name = " + string(name, namelength) + " value = " + string(value, valuelength) + " expires = " + string(expires, expireslength) + " maxAge = " + std::to_string(maxAge) + " secure = " + std::to_string(secure) + " httpOnly = " + std::to_string(httpOnly) + " path = " + string(path, pathlength) + " domain = " + string(domain, domainlength));
         ThreadPool::setCookie(name, value, expires, maxAge, secure, httpOnly, path, domain);
     }
     Py_RETURN_NONE;
@@ -176,6 +177,7 @@ static PyObject* wwwcookiedel(PyObject* self, PyObject* args) {
 
 static PyObject* wwwsessionclear(PyObject* self, PyObject* args) {
     httpdlog("XTRA", std::to_string(globalThreadId) + ": wwwsessionclear called ");
+    //Remove the json file associated with the session and clear out all the cookies from the httpd server.
     ThreadPool::clearHttpSession();
     Py_RETURN_NONE;
 }
@@ -205,6 +207,8 @@ PyMODINIT_FUNC PyInit_HttpdWin(void) {
     return PyModule_Create(&HttpdWin);
 }
 
+std::string sessionIdName = "SessionID";
+uint64_t sessionMaxAge = 0;
 
 int main()
 {
@@ -231,6 +235,13 @@ int main()
     httpdlog(" ", "HttpdWin Server with Python3 backend - Starting up...");
 
     parseConfig();
+	sessionIdName = httpdwinConfig["session"];
+    if( sessionIdName  == "" )
+		sessionIdName = "SessionID";
+	sessionMaxAge = strtoull(httpdwinConfig["maxage"].c_str(), NULL, 10);
+    if (sessionMaxAge <= 0)
+		sessionMaxAge = 1 * 60 * 60; //1 hour default session max age
+    
 
     httpdlog("INFO", "Configuration read");
     SOCKET srv = 0, client = 0;

@@ -29,7 +29,7 @@ class Cookie {
 	std::string m_domain;
 
 	Cookie();
-	Cookie(const std::string& gname, const std::string& name, const std::string& value, std::string expires = "", uint64_t maxage = 24 * 60 * 60, bool secure = true, bool httpOnly = false, std::string path = "", std::string domain = "");
+	Cookie(const std::string& gname, const std::string& name, const std::string& value, std::string expires = "", uint64_t maxage = 1 * 60 * 60, bool secure = true, bool httpOnly = false, std::string path = "", std::string domain = "");
 	void generateSessionId();
 
 	bool operator==(const Cookie& other) const {

@@ -4,6 +4,9 @@ std::random_device rd;
 std::mt19937_64 gen(rd());
 std::mutex randomMutex;
 
+extern std::string sessionIdName;
+extern uint64_t sessionMaxAge;
+
 uint64_t randomNumber() {
 	randomMutex.lock();
 	std::uniform_int_distribution<uint64_t> dist(0, UINT64_MAX);
@@ -12,8 +15,8 @@ uint64_t randomNumber() {
 	return randomNumber;
 }
 
-Cookie::Cookie() :m_gname(""), m_name(""), m_value(""), m_expires(""), m_maxage(24 * 60 * 60), m_secure(false), m_httpOnly(false), m_path(""), m_domain("") {
-
+Cookie::Cookie() :m_gname(""), m_name(""), m_value(""), m_expires(""), m_maxage(sessionMaxAge), m_secure(false), m_httpOnly(false), m_path(""), m_domain("") {
+	m_maxage = sessionMaxAge;
 }
 
 Cookie::Cookie(const std::string& gname, const std::string& name, const std::string& value, std::string expires, uint64_t maxage , bool secure, bool httpOnly , std::string path , std::string domain)
@@ -26,7 +29,7 @@ void Cookie::generateSessionId() {
 	if (m_value == "") {
 		Cookie::generateRandomSessionId(m_value);
 		m_gname = m_value;
-		m_name = "SessionID";
+		m_name = sessionIdName;
 	}
 	httpdlog("DEBUG", "Cookie created: " + toString());
 }
@@ -172,6 +175,9 @@ void Cookie::parseCookieString(const std::string& cookieStr) {
 			else if (key == "Max-Age") {
 				httpdlog("DEBUG", "Found Max-Age attribute: " + value);
 				m_maxage = std::stoull(value);
+				if (m_maxage <= 0) {
+					m_maxage = sessionMaxAge;
+				}
 			}
 			else if (key == "Secure") {
 				httpdlog("DEBUG", "Found Secure attribute: " + value);
@@ -352,11 +358,11 @@ bool CookieManager::add(std::string gname, CookieList *cl) {
 
 		//m_cookies[gname] = cl;
 		m_cookies.insert({ gname, cl });
-		httpdlog("INFO", "Cookie group name added to map");
+		httpdlog("DEBUG", "Cookie group name added to map");
 		return true;
 	}
 	else {
-		httpdlog("INFO", "Cookie group name already exists: " + gname);
+		httpdlog("DEBUG", "Cookie group name already exists: " + gname);
 		return false;
 	}
 }

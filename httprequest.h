@@ -39,7 +39,7 @@ class HttpRequest {
         string  m_Filename;
         string  m_TempPostFileName;
         string  m_TempPutFileName;
-        string  m_jsonfile;
+        string  m_jsonFile;
 
         string  m_HeaderNames[164];
         string  m_Headers[164];
@@ -212,7 +212,7 @@ class HttpRequest {
         	X_XSS_ProtectionNon_standardDeprecated,
         };
 
-        static CookieList* readCookies(HttpRequest* req, string& line);
+        static CookieList* readCookies(HttpRequest* req, string& line, CookieList *);
         static void readHttpReqLine( HttpRequest *req, string &line );
 		static void readHeaderLine ( HttpRequest *req, string &line );
 		static void readHttpHeader ( HttpRequest *req, char *buffer, int *len, int totalLen);

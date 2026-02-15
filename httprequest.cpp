@@ -17,6 +17,9 @@ typedef vector<string> VectorStr;
 extern std::map<string,string> httpHeaders;
 
 extern thread_local int globalThreadId;
+extern CookieManager cookieManager;
+extern std::string sessionIdName;
+extern uint64_t sessionMaxAge;
 
 NameMimeValues & NameMimeValues::operator =( const NameMimeValues& cp){
     m_Name  = cp.m_Name;
@@ -38,6 +41,7 @@ HttpRequest::~HttpRequest(){
     httpdlog("DEBUG", std::to_string(globalThreadId) + ": Deleting request object: " + to_string((unsigned long long int) this));
     m_Len = 0;
     m_cLen = 0;
+    m_CookieList = 0;
 }
 
 
@@ -129,9 +133,15 @@ void HttpRequest::readHttpReqLine( HttpRequest *req, string &line ){
     httpdlog("INFO", std::to_string(globalThreadId) + ": " + req->m_Method +" "+req->m_Version +" "+ req->m_EncodedUrl+" -> "+req->m_DecodedUrl);
 }
 
-CookieList* HttpRequest::readCookies ( HttpRequest *req, string &line ){
+CookieList* HttpRequest::readCookies ( HttpRequest *req, string &line, CookieList *curList ){
     size_t i = 0;
-	CookieList* cookieList = new CookieList;
+    
+    CookieList* cookieList = 0;
+    if (curList)
+        cookieList = curList;
+    else
+        cookieList = new CookieList;
+
     Cookie c;
 
     string cookieName = "";
@@ -170,11 +180,27 @@ CookieList* HttpRequest::readCookies ( HttpRequest *req, string &line ){
 	CookieList::iterator it = cookieList->begin();
     string gname = "";
     while (it != cookieList->end()) {
-        if (it->m_name == "SessionID") {
+        if (it->m_name == sessionIdName) {
             gname = it->m_value;
             break;
         }
         it++;
+    }
+
+    if (gname != "") {
+        CookieList* list = cookieManager.get(gname);
+        if (!list) {
+			httpdlog("DEBUG", std::to_string(globalThreadId) + ": Cookie not found in Map, generating new session ID");
+            Cookie::generateRandomSessionId(gname);
+            Cookie c;
+            c.m_name = sessionIdName;
+            c.m_value = gname;
+            c.m_gname = gname;
+            cookieList->push_back(c);
+        }
+        else {
+            httpdlog("DEBUG", std::to_string(globalThreadId) + ": Cookie found in Map");
+        }
     }
 
     it = cookieList->begin();
@@ -222,7 +248,7 @@ void HttpRequest::readHeaderLine ( HttpRequest *req, string &line ){
         req->m_Headers[req->m_FieldCount++] = fieldValue;
 
         if (field == "Cookie") {
-            req->m_CookieList = readCookies(req, fieldValue);
+            req->m_CookieList = readCookies(req, fieldValue, req->m_CookieList);
         }
 
         httpdlog("DEBUG", std::to_string(globalThreadId) + ": " + req->m_HeaderNames[req->m_FieldCount-1] + " -> "+ req->m_Headers[req->m_FieldCount-1]);
