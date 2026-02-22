@@ -168,6 +168,9 @@ There may be memory leaks.
 
 	     "clientIpAddress" : "::1",
 	     "clientPort" : "36035",
+		 "isSSL" : "0",
+		 "isSslAccepted" : "0",
+		 "isIPv6" : "1",
 	     "url" : "/openfile?openfile=filename.xyz",
 	     "decodedUrl" : "/openfile?openfile=filename.xyz",
 	     "jsonfile" : "C:/HttpdWin/Temp/_____23916213n305844699310g1175293533_____.json",
