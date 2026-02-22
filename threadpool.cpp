@@ -32,6 +32,7 @@ ThreadCommand::ThreadCommand( ){
     isIpv6=false;
     int port = -1;
     ipAddress ="";
+    portStr = "";
     ssl = 0;
     port = 8080;
 }
@@ -43,6 +44,7 @@ ThreadCommand::ThreadCommand( Task _task, SOCKET _socket, bool _isSsl, bool _isS
     isSslAccepted = _isSslAccepted;
     isIpv6 = _ipv6;
     port = _p;
+    portStr = std::to_string(port);
     ipAddress = _address;
     ssl = _ssl;
 }
@@ -61,6 +63,7 @@ ThreadCommand::~ThreadCommand(){
     }
     port = 0;
     ipAddress = "";
+    portStr = "";
     isIpv6 = false;
 }
 
@@ -245,7 +248,7 @@ void ThreadPool::writeToTempFile(string tempFileName, ThreadCommand *cmd, HttpRe
         f.close();
     }
     else {
-        httpdlog("INFO", std::to_string(id) + ": NUnable to open temporary file for writing post data :" + tempFileName );
+        httpdlog("INFO", std::to_string(id) + ": Unable to open temporary file for writing post data :" + tempFileName );
         req->m_TempPostFileName = "";
         req->m_TempPutFileName = "";
     }
@@ -625,9 +628,31 @@ string ThreadPool::generateJsonFile() {
             it++;
             i++;
         }
-        f << "\t}," << endl << endl;;
+        f << "\t}," << endl << endl;
+
+        f<< "\n\t\"queryValues\" : {" << endl;
+
+        i = 0;
+        n = info.req->query.size();
+        Query::iterator itq = info.req->query.begin();
+        while (itq != info.req->query.end()) {
+            string queryValue = itq->second->m_Value;
+            if (queryValue[1] == ':' && queryValue[2] == '\\') { //possibly a path
+                std::replace(queryValue.begin(), queryValue.end(), '\\', '/');
+            }
+            if (i == n - 1)
+                f << "\t\t\"" << itq->first << "\" : \"" << queryValue << "\"" << endl;
+            else
+                f << "\t\t\"" << itq->first << "\" : \"" << queryValue << "\", " << endl;
+            itq++;
+            i++;
+        }
+        f << "\t}," << endl << endl;
+
+        f << "\t\"clientIpAddress\" : \"" << info.req->m_ipAddress << "\"," << endl;
+        f << "\t\"clientPort\" : \"" << info.req->m_port << "\"," << endl;
         f << "\t\"url\" : \"" << info.req->m_EncodedUrl << "\"," << endl;
-        f << "\t\"decoded_url\" : \"" << info.req->m_DecodedUrl << "\"," << endl;
+        f << "\t\"decodedUrl\" : \"" << info.req->m_DecodedUrl << "\"," << endl;
         std::replace(jsonfile.begin(), jsonfile.end(), '\\', '/');
         f << "\t\"jsonfile\" : \"" << jsonfile << "\"," << endl;
         f << "\t\"method\" : \"" << info.req->m_Method << "\"," << endl;
@@ -708,6 +733,8 @@ void ThreadPool::threadpoolFunction(int id ){
                 }
                 httpdlog("INFO",std::to_string(id ) + ": SSL connection received" + (cmd->isIpv6?" - IPv6 ":" - IPv4 ") + std::to_string( (unsigned long long int)cmd->ssl));
                 HttpRequest *req = new HttpRequest();
+                req->m_ipAddress = cmd->ipAddress;
+                req->m_port = cmd->portStr;
                 size_t dataStartPresent = 0;
                 size_t dataStart = 0;
                 size_t nBytes = 0;
@@ -1007,6 +1034,8 @@ void ThreadPool::threadpoolFunction(int id ){
             }
             else {
                 HttpRequest* req = new HttpRequest();
+                req->m_ipAddress = cmd->ipAddress;
+                req->m_port = cmd->portStr;
                 int dataStartPresent = 0;
                 int dataStart = 0;
                 int nBytes = 0;

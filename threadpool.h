@@ -46,6 +46,7 @@ class ThreadCommand{
         bool isIpv6;
         int  port;
         string ipAddress;
+        string portStr;
         SSL *ssl;
 };
 

@@ -532,10 +532,12 @@ int main()
             if (pollfds[0].revents & POLLIN && transport & 0x01 ) {
                 socklen_t addrlen = sizeof(sockaddr_in);
                 if ((client = accept(srv, (sockaddr*)&clientAddr, &addrlen))) {
-                    ThreadCommand* t = new ThreadCommand(WORK, client, false, false, false, 0, "", 0);
+                    
                     ipAddressStr[0] = 0;
                     inet_ntop(AF_INET, &clientAddr.sin_addr, ipAddressStr, sizeof(ipAddressStr));
                     ipAddressStr[INET6_ADDRSTRLEN - 1] = 0;
+                    string ipAddressString = ipAddressStr;
+                    ThreadCommand* t = new ThreadCommand(WORK, client, false, false, false, clientAddr.sin_port, ipAddressString, 0);
                     httpdlog("WARN", "Assigning task NON-SSL ipv4  to threadpool : " + std::to_string((unsigned long long int)t) + " : " +ipAddressStr + ": " + std::to_string( htons(clientAddr.sin_port) ) ) ;
                     tp->assignTaskRr(t);
                 }
@@ -544,10 +546,12 @@ int main()
             if (pollfds[1].revents & POLLIN && transport & 0x01 ) {
                 socklen_t addrlen = sizeof(sockaddr_in6);
                 if ((client6 = accept(srv6, (sockaddr*)&clientAddr6, &addrlen))) {
-                    ThreadCommand* t = new ThreadCommand(WORK, client6, false, false, true, 0, "", 0);
+                    
                     ipAddressStr[0] = 0;
                     inet_ntop(AF_INET6, &clientAddr6.sin6_addr, ipAddressStr, sizeof(ipAddressStr));
                     ipAddressStr[INET6_ADDRSTRLEN - 1] = 0;
+                    string ipAddressString = ipAddressStr;
+                    ThreadCommand* t = new ThreadCommand(WORK, client6, false, false, true, clientAddr6.sin6_port, ipAddressString, 0);
                     httpdlog("WARN", "Assigning task NON-SSL ipv6  to threadpool : " + std::to_string((unsigned long long int)t) + " : " + ipAddressStr + ": " + std::to_string(htons(clientAddr.sin_port)));
                     tp->assignTaskRr(t);
                 }
@@ -615,11 +619,12 @@ int main()
                     if (ssl && isSslAccepted) {
                         
                         //ThreadCommand *t = new ThreadCommand(WORK, sslclient, true, isSslAccepted, false, 0, "", ssl);
-                        ThreadCommand* t = new ThreadCommand(WORK, sslclient, true, isSslAccepted, false, 0, "", ssl);
                         //httpdlog("WARN", "Assigning task SSL ipv4 to threadpool : " + std::to_string((unsigned long long int)t));
                         ipAddressStr[0] = 0;
                         inet_ntop(AF_INET, &sslclientAddr.sin_addr, ipAddressStr, sizeof(ipAddressStr));
                         ipAddressStr[INET6_ADDRSTRLEN - 1] = 0;
+                        string ipAddressString = ipAddressStr;
+                        ThreadCommand* t = new ThreadCommand(WORK, sslclient, true, isSslAccepted, false, sslclientAddr.sin_port, ipAddressString, ssl);
                         httpdlog("WARN", "Assigning task SSL ipv4  to threadpool : " + std::to_string((unsigned long long int)t) + " : " + ipAddressStr + ": " + std::to_string(htons(clientAddr.sin_port)));
                         tp->assignTaskRr(t);
                     }
@@ -688,11 +693,12 @@ int main()
 
                     if (ssl6 && isSslAccepted) {
                         
-                        ThreadCommand* t = new ThreadCommand(WORK, sslclient6, true, isSslAccepted, true, 0, "", ssl6);
                         //httpdlog("WARN", "Assigning task SSL ipv6 to threadpool  : " + std::to_string((unsigned long long int)t));
                         ipAddressStr[0] = 0;
                         inet_ntop(AF_INET6, &sslclientAddr6.sin6_addr, ipAddressStr, sizeof(ipAddressStr));
                         ipAddressStr[INET6_ADDRSTRLEN - 1] = 0;
+                        string ipAddressString = ipAddressStr;
+                        ThreadCommand* t = new ThreadCommand(WORK, sslclient6, true, isSslAccepted, true, sslclientAddr6.sin6_port, ipAddressString, ssl6);
                         httpdlog("WARN", "Assigning task SSL ipv6  to threadpool : " + std::to_string((unsigned long long int)t) + " : " + ipAddressStr + ": " + std::to_string(htons(clientAddr.sin_port)));
                         tp->assignTaskRr(t);
                     }

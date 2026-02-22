@@ -29,6 +29,8 @@ class HttpRequest {
     private:
     public:
 
+        string  m_ipAddress;
+        string  m_port;
         string  m_Method;
         string  m_Version;
         string  m_DecodedUrl;

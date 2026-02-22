@@ -29,6 +29,7 @@ NameMimeValues & NameMimeValues::operator =( const NameMimeValues& cp){
 }
 
 HttpRequest::HttpRequest(){
+    m_ipAddress = "";
     m_Len = 0;
     m_cLen = 0;
     m_FieldCount = 0;
@@ -39,6 +40,7 @@ HttpRequest::HttpRequest(){
 
 HttpRequest::~HttpRequest(){
     httpdlog("DEBUG", std::to_string(globalThreadId) + ": Deleting request object: " + to_string((unsigned long long int) this));
+    m_ipAddress = "";
     m_Len = 0;
     m_cLen = 0;
     m_CookieList = 0;
