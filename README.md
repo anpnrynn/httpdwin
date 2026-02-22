@@ -139,6 +139,47 @@ There may be memory leaks.
      HttpdWin.wwwsessionclear();     
 
 
+#### Sample JSON file attached to a particular HTTP request
+     This file is part of the python script's main dict, and is avaiable through the variable "input".
+     The other main dict python variable is "sessionid".
+     Contents of "C:/HttpdWin/Temp/_____23916213n305844699310g1175293533_____.json" file.
+     { 
+	     "headers" : { 
+		     "Host" : "[::1]:8081", 
+		     "Connection" : "keep-alive", 
+		     "Upgrade-Insecure-Requests" : "1", 
+		     "User-Agent" : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36 Edg/145.0.0.0", 
+		     "Accept" : "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7", 
+		     "Sec-Fetch-Site" : "none", 
+		     "Sec-Fetch-Mode" : "navigate", 
+		     "Sec-Fetch-User" : "?1", 
+		     "Sec-Fetch-Dest" : "document", 
+		     "Accept-Encoding" : "gzip, deflate, br, zstd"
+	     },
+
+	     "cookies" : {
+		     "SID" : "xxxxxxxxx"
+	     },
+
+
+	     "queryValues" : {
+		     "openfile" : "filename.xyz"
+	     },
+
+	     "clientIpAddress" : "::1",
+	     "clientPort" : "36035",
+	     "url" : "/openfile?openfile=filename.xyz",
+	     "decodedUrl" : "/openfile?openfile=filename.xyz",
+	     "jsonfile" : "C:/HttpdWin/Temp/_____23916213n305844699310g1175293533_____.json",
+	     "method" : "GET",
+	     "version" : "HTTP/1.1",
+	     "postfile" : "",
+	     "putfile" : "",
+	     "requestfile" : "/openfile",
+	     "length" : "1202"
+     }
+
+
 #### Log messages & it's interpretation     
      Operational logs are stored in C:\\HttpdWin\httpdwin-errors.log     
      Message level - 
