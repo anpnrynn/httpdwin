@@ -651,6 +651,9 @@ string ThreadPool::generateJsonFile() {
 
         f << "\t\"clientIpAddress\" : \"" << info.req->m_ipAddress << "\"," << endl;
         f << "\t\"clientPort\" : \"" << info.req->m_port << "\"," << endl;
+        f << "\t\"isSSL\" : \"" << std::to_string(info.cmd->isSsl) << "\"," << endl;
+        f << "\t\"isSslAccepted\" : \"" << std::to_string(info.cmd->isSslAccepted) << "\"," << endl;
+        f << "\t\"isIPv6\" : \"" << std::to_string(info.cmd->isIpv6) << "\"," << endl;
         f << "\t\"url\" : \"" << info.req->m_EncodedUrl << "\"," << endl;
         f << "\t\"decodedUrl\" : \"" << info.req->m_DecodedUrl << "\"," << endl;
         std::replace(jsonfile.begin(), jsonfile.end(), '\\', '/');
