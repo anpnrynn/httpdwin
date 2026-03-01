@@ -376,6 +376,8 @@ int main()
 
 
     int sockflag = 1;
+    
+#ifndef MAC_TAHOE
     int sockret = setsockopt ( srv, SOL_SOCKET, SO_REUSEADDR , (char *)&sockflag, sizeof ( sockflag ) );
 
     if ( sockret == -1 ) {
@@ -406,6 +408,34 @@ int main()
         httpdlog (  "ERROR", "Unable to setsockopt - SSLIPv6" );
         return 1;
     }
+#else
+    int sockret = ::setsockopt(srv, SOL_SOCKET, SO_REUSEADDR, &sockflag, sizeof(sockflag));
+    if ( sockret == -1 ) {
+        httpdlog (  "ERROR", "Unable to setsockopt - IPv4" );
+        return 1;
+    }
+
+    sockflag = 1;
+    sockret = ::setsockopt(srv, SOL_SOCKET, SO_REUSEADDR, &sockflag, sizeof(sockflag));
+    if ( sockret == -1 ) {
+        httpdlog (  "ERROR", "Unable to setsockopt - IPv6" );
+        return 1;
+    }
+
+    sockflag = 1;
+    sockret = ::setsockopt(srv, SOL_SOCKET, SO_REUSEADDR, &sockflag, sizeof(sockflag));
+    if ( sockret == -1 ) {
+        httpdlog (  "ERROR", "Unable to setsockopt - SSLIPv4" );
+        return 1;
+    }
+
+    sockflag = 1;
+    sockret = ::setsockopt(srv, SOL_SOCKET, SO_REUSEADDR, &sockflag, sizeof(sockflag));
+    if ( sockret == -1 ) {
+        httpdlog (  "ERROR", "Unable to setsockopt - SSLIPv6" );
+        return 1;
+    }
+#endif
 
 
     int count = 0;
@@ -413,9 +443,8 @@ int main()
     struct sockaddr_in sin;
     int len;
     do {
-        bind ( srv, ( const struct sockaddr * ) &srvAddr, sizeof ( srvAddr) );
+        ::bind ( srv, ( const struct sockaddr * ) &srvAddr, sizeof ( srvAddr) );
     }while( errno );
-    
 #else
     while ( bind ( srv, ( const sockaddr * ) &srvAddr, sizeof ( sockaddr_in ) ) == SOCKET_ERROR ) {
 
@@ -432,7 +461,7 @@ int main()
 
 #ifdef MAC_TAHOE
     do {
-        bind ( srv6, ( const struct sockaddr * ) &srvAddr6, sizeof ( srvAddr6) );
+        ::bind ( srv6, ( const struct sockaddr * ) &srvAddr6, sizeof ( srvAddr6) );
     }while( errno );
 #else
     while ( bind ( srv6, ( const sockaddr * ) &srvAddr6, sizeof ( sockaddr_in6 ) ) == SOCKET_ERROR ) {
@@ -451,7 +480,7 @@ int main()
     count = 0;
 #ifdef MAC_TAHOE
     do {
-        bind ( sslsrv, ( const struct sockaddr * ) &sslsrvAddr, sizeof ( sslsrvAddr) );
+        ::bind ( sslsrv, ( const struct sockaddr * ) &sslsrvAddr, sizeof ( sslsrvAddr) );
     }while( errno );
 #else
     while ( bind ( sslsrv, ( const sockaddr * ) &sslsrvAddr, sizeof ( sockaddr_in ) ) == SOCKET_ERROR ) {
@@ -468,7 +497,7 @@ int main()
     count = 0;
 #ifdef MAC_TAHOE
     do {
-        bind ( sslsrv6, ( const struct sockaddr * ) &sslsrvAddr6, sizeof ( sslsrvAddr6) );
+        ::bind ( sslsrv6, ( const struct sockaddr * ) &sslsrvAddr6, sizeof ( sslsrvAddr6) );
     }while( errno );
 #else
     while ( bind ( sslsrv6, ( const sockaddr * ) &sslsrvAddr6, sizeof ( sockaddr_in ) ) == SOCKET_ERROR ) {
