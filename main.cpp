@@ -233,7 +233,7 @@ uint64_t sessionMaxAge = 0;
 int main()
 {
 #ifdef MAC_TAHOE
-    ofstream errorLogFile("~/HttpdWin/httpdwin-errors.log",ios::app);
+    ofstream errorLogFile(HWD("~/HttpdWin/httpdwin-errors.log"),ios::app);
 #else
     ofstream errorLogFile("C:\\HttpdWin\\httpdwin-errors.log",ios::app);
 #endif
