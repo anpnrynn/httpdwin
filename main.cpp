@@ -7,10 +7,22 @@
 #include <atomic>
 #include <map>
 #include <exception>
+#ifndef MAC_TAHOE
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#else
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <errno.h>
+#include <poll.h>
+#include <errno.h>
+#endif
 #include <stdio.h>
-#include <malloc.h>
+#include <stdlib.h>
 
 #include <thread>
 #include <chrono>
@@ -23,10 +35,12 @@
 #include <httpdlog.h>
 #include <threadpool.h>
 
+#ifndef MAC_TAHOE
 #pragma comment(lib, "WS2_32.lib")
 #pragma comment(lib, "libssl.lib")
 #pragma comment(lib, "libcrypto.lib")
 #pragma comment(lib, "python313.lib")
+#endif
 
 using namespace std;
 
@@ -37,7 +51,11 @@ extern thread_local int globalThreadId;
 
 int parseConfig(){
     fstream f;
+#ifndef MAC_TAHOE
     f.open("C:\\Httpdwin\\httpdwin.conf", ios::in);
+#else
+    f.open(HWD("~/HttpdWin/httpdwin.conf"), ios::in);
+#endif
     if( f.is_open() ){
         string line;
          while( !f.eof() ){
@@ -57,6 +75,7 @@ int parseConfig(){
             }
         }
     } else {
+        httpdlog("ERROR", "Unable to open configuratoin File");
         return 1;
     }
     f.close();
@@ -210,11 +229,22 @@ PyMODINIT_FUNC PyInit_HttpdWin(void) {
 std::string sessionIdName = "SessionID";
 uint64_t sessionMaxAge = 0;
 
+
 int main()
 {
+#ifdef MAC_TAHOE
+    ofstream errorLogFile(HWD("~/HttpdWin/httpdwin-errors.log"),ios::app);
+#else
     ofstream errorLogFile("C:\\HttpdWin\\httpdwin-errors.log",ios::app);
-    streambuf* origCerrBuf = std::cerr.rdbuf();
-    std::cerr.rdbuf(errorLogFile.rdbuf());
+#endif
+    streambuf* origCerrBuf;
+    if (!errorLogFile.is_open()) {
+        httpdlog(" ", "HttpdWin Server with Python3 backend - Unable to open error log file...");
+        //return 8888;
+    } else {
+        origCerrBuf = std::cerr.rdbuf();
+        std::cerr.rdbuf(errorLogFile.rdbuf());
+    }
     extern mutex logmutex;
 
     httpdlog(" ", "<================================================================>");
@@ -244,10 +274,17 @@ int main()
     
 
     httpdlog("INFO", "Configuration read");
+#ifdef MAC_TAHOE
+    int srv = 0, client = 0;
+    int srv6 = 0, client6 = 0;
+    int sslsrv =0, sslclient = 0;
+    int sslsrv6 = 0, sslclient6 = 0;
+#else
     SOCKET srv = 0, client = 0;
     SOCKET srv6 = 0, client6 = 0;
     SOCKET sslsrv =0, sslclient = 0;
     SOCKET sslsrv6 = 0, sslclient6 = 0;
+#endif
 
     extern struct PyModuleDef HttpdWin;
 
@@ -260,6 +297,9 @@ int main()
     short int serverPort6 = serverPort;
     short int sslserverPort = atoi(httpdwinConfig["httpsport"].c_str());
     short int sslserverPort6 = sslserverPort;
+    
+    httpdlog("WARN", "HttpdWin Ports: NON-SSL= " + std::to_string(serverPort) + ", " +
+             std::to_string(serverPort6) + ", SSL= " + std::to_string(sslserverPort)+ ", " + std::to_string(sslserverPort6));
 
     uint8_t transport = 3;
 
@@ -287,11 +327,12 @@ int main()
 
     httpdlog("INFO", logMsg);
 
+#ifndef MAC_TAHOE
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 0), &wsaData) != 0) {
             httpdlog("ERROR", "WSAStartup failed\n"); return 1;
     }
-
+#endif
 
     sockaddr_in  srvAddr;
     sockaddr_in  clientAddr;
@@ -335,6 +376,8 @@ int main()
 
 
     int sockflag = 1;
+    
+#ifndef MAC_TAHOE
     int sockret = setsockopt ( srv, SOL_SOCKET, SO_REUSEADDR , (char *)&sockflag, sizeof ( sockflag ) );
 
     if ( sockret == -1 ) {
@@ -365,10 +408,46 @@ int main()
         httpdlog (  "ERROR", "Unable to setsockopt - SSLIPv6" );
         return 1;
     }
+#else
+    int sockret = ::setsockopt(srv, SOL_SOCKET, SO_REUSEADDR, &sockflag, sizeof(sockflag));
+    if ( sockret == -1 ) {
+        httpdlog (  "ERROR", "Unable to setsockopt - IPv4" );
+        return 1;
+    }
+
+    sockflag = 1;
+    sockret = ::setsockopt(srv, SOL_SOCKET, SO_REUSEADDR, &sockflag, sizeof(sockflag));
+    if ( sockret == -1 ) {
+        httpdlog (  "ERROR", "Unable to setsockopt - IPv6" );
+        return 1;
+    }
+
+    sockflag = 1;
+    sockret = ::setsockopt(srv, SOL_SOCKET, SO_REUSEADDR, &sockflag, sizeof(sockflag));
+    if ( sockret == -1 ) {
+        httpdlog (  "ERROR", "Unable to setsockopt - SSLIPv4" );
+        return 1;
+    }
+
+    sockflag = 1;
+    sockret = ::setsockopt(srv, SOL_SOCKET, SO_REUSEADDR, &sockflag, sizeof(sockflag));
+    if ( sockret == -1 ) {
+        httpdlog (  "ERROR", "Unable to setsockopt - SSLIPv6" );
+        return 1;
+    }
+#endif
 
 
     int count = 0;
+#ifdef MAC_TAHOE
+    struct sockaddr_in sin;
+    int len;
+    do {
+        ::bind ( srv, ( const struct sockaddr * ) &srvAddr, sizeof ( srvAddr) );
+    }while( errno );
+#else
     while ( bind ( srv, ( const sockaddr * ) &srvAddr, sizeof ( sockaddr_in ) ) == SOCKET_ERROR ) {
+
         std::this_thread::sleep_for ( std::chrono::microseconds ( 100000 ) );
         if ( count > 10 ) {
             return 11;
@@ -376,9 +455,17 @@ int main()
             count++;
         }
     }
+#endif
+    
     count = 0;
 
-    while ( bind ( srv6, ( const sockaddr * ) &srvAddr6, sizeof ( sockaddr_in6 ) ) == SOCKET_ERROR ){
+#ifdef MAC_TAHOE
+    do {
+        ::bind ( srv6, ( const struct sockaddr * ) &srvAddr6, sizeof ( srvAddr6) );
+    }while( errno );
+#else
+    while ( bind ( srv6, ( const sockaddr * ) &srvAddr6, sizeof ( sockaddr_in6 ) ) == SOCKET_ERROR ) {
+
         char address[64];
         inet_ntop( AF_INET6, &(srvAddr6.sin6_addr), address , 64 );
         std::this_thread::sleep_for ( std::chrono::microseconds ( 100000 ) );
@@ -388,9 +475,16 @@ int main()
             count++;
         }
     }
+#endif
 
     count = 0;
+#ifdef MAC_TAHOE
+    do {
+        ::bind ( sslsrv, ( const struct sockaddr * ) &sslsrvAddr, sizeof ( sslsrvAddr) );
+    }while( errno );
+#else
     while ( bind ( sslsrv, ( const sockaddr * ) &sslsrvAddr, sizeof ( sockaddr_in ) ) == SOCKET_ERROR ) {
+
         std::this_thread::sleep_for ( std::chrono::microseconds ( 100000 ) );
         if ( count > 10 ) {
             return 13;
@@ -398,9 +492,16 @@ int main()
             count++;
         }
     }
+#endif
 
     count = 0;
-    while ( bind ( sslsrv6, ( const sockaddr * ) &sslsrvAddr6, sizeof ( sockaddr_in6 ) ) == SOCKET_ERROR ) {
+#ifdef MAC_TAHOE
+    do {
+        ::bind ( sslsrv6, ( const struct sockaddr * ) &sslsrvAddr6, sizeof ( sslsrvAddr6) );
+    }while( errno );
+#else
+    while ( bind ( sslsrv6, ( const sockaddr * ) &sslsrvAddr6, sizeof ( sockaddr_in ) ) == SOCKET_ERROR ) {
+
         std::this_thread::sleep_for ( std::chrono::microseconds ( 100000 ) );
         if ( count > 10 ) {
             return 14;
@@ -408,6 +509,7 @@ int main()
             count++;
         }
     }
+#endif
 
     httpdlog (  "INFO", "Bound successfully both IPv4 and IPv6" );
 
@@ -430,10 +532,21 @@ int main()
     httpdlog (  "INFO", "Done setting up Listen" );
 
     unsigned long mode = 1;
+    
+#ifdef MAC_TAHOE
+    int flags = fcntl(srv, F_GETFL, 0);
+    if (flags == -1)
+        return -1;
+    fcntl(srv, F_SETFL, flags | O_NONBLOCK);
+    fcntl(srv6, F_SETFL, flags | O_NONBLOCK);
+    fcntl(sslsrv, F_SETFL, flags | O_NONBLOCK);
+    fcntl(sslsrv6, F_SETFL, flags | O_NONBLOCK);
+#else
     ioctlsocket(srv, FIONBIO, &mode);
     ioctlsocket(srv6, FIONBIO, &mode);
     ioctlsocket(sslsrv, FIONBIO, &mode);
     ioctlsocket(sslsrv6, FIONBIO, &mode);
+#endif
 
 
     const SSL_METHOD *mIp4;
@@ -446,6 +559,21 @@ int main()
         return ( 1000 );
     }
 
+#ifdef MAC_TAHOE
+    if ( SSL_CTX_use_certificate_file ( cIp4, HWD("~/HttpdWin/Certs/httpdwincert.pem"), SSL_FILETYPE_PEM ) <= 0 ) {
+        httpdlog (  "ERROR", "Certificate file issue IPv4 ~/HttpdWin/Certs/httpdwincert.pem" );
+        return ( 1001 );
+    } else {
+        httpdlog (  "INFO", "Certiticate file loaded ~/HttpdWin/Certs/httpdwincert.pem" );
+    }
+
+    if ( SSL_CTX_use_PrivateKey_file ( cIp4, HWD("~/HttpdWin/Certs/httpdwinkey.pem"), SSL_FILETYPE_PEM ) <= 0 ) {
+        httpdlog (  "ERROR", "Private key file issue IPv4 ~/HttpdWin/Certs/httpdwinkey.pem" );
+        return ( 1002 );
+    } else {
+        httpdlog (  "INFO", "Private key file loaded ~/HttpdWin/Certs/httpdwinkey.pem" );
+    }
+#else
     if ( SSL_CTX_use_certificate_file ( cIp4, "C:\\Httpdwin\\Certs\\httpdwincert.pem", SSL_FILETYPE_PEM ) <= 0 ) {
         httpdlog (  "ERROR", "Certificate file issue IPv4 C:\\Httpdwin\\Certs\\httpdwincert.pem" );
         return ( 1001 );
@@ -459,6 +587,7 @@ int main()
     } else {
         httpdlog (  "INFO", "Private key file loaded C:\\Httpdwin\\Certs\\httpdwinkey.pem" );
     }
+#endif
 
     const SSL_METHOD *mIp6;
     SSL_CTX *cIp6;
@@ -470,6 +599,21 @@ int main()
         return ( 1000 );
     }
 
+#ifdef MAC_TAHOE
+    if ( SSL_CTX_use_certificate_file ( cIp6, HWD("~/HttpdWin/Certs/httpdwincert6.pem"), SSL_FILETYPE_PEM ) <= 0 ) {
+        httpdlog (  "ERROR", "Certificate file issue IPv6 ~/HttpdWin/Certs/httpdwincert6.pem" );
+        return ( 1001 );
+    } else {
+        httpdlog (  "INFO", "Certificate file loaded IPv6 ~/HttpdWin/Certs/httpdwincert6.pem" );
+    }
+
+    if ( SSL_CTX_use_PrivateKey_file ( cIp6,  HWD("~/HttpdWin/Certs/httpdwinkey6.pem"), SSL_FILETYPE_PEM ) <= 0 ) {
+        httpdlog (  "ERROR", "Private key file issue IPv6 ~/HttpdWin/Certs/httpdwinkey6.pem" );
+        return ( 1002 );
+    } else {
+        httpdlog (  "INFO", "Private key file loaded IPv6 ~/HttpdWin/Certs/httpdwinkey6.pem" );
+    }
+#else
     if ( SSL_CTX_use_certificate_file ( cIp6, "C:\\Httpdwin\\Certs\\httpdwincert6.pem", SSL_FILETYPE_PEM ) <= 0 ) {
         httpdlog (  "ERROR", "Certificate file issue IPv6 C:\\Httpdwin\\Certs\\httpdwincert6.pem" );
         return ( 1001 );
@@ -483,6 +627,7 @@ int main()
     } else {
         httpdlog (  "INFO", "Private key file loaded IPv6 C:\\Httpdwin\\Certs\\httpdwinkey6.pem" );
     }
+#endif
 
     extern CookieManager cookieManager;
     cookieManager.openFileForReading();
@@ -491,8 +636,12 @@ int main()
 
 	httpdlog("INFO", "Entering main loop");
 
-    WSAPOLLFD    *pollfds = new WSAPOLLFD[5];
-
+#ifdef MAC_TAHOE
+    struct pollfd    fds[5];
+    struct pollfd    *pollfds = &fds[0];
+#else
+    struct pollfd    *pollfds = new WSAPOLLFD[5];
+#endif
     int nPorts   = 4;
     int nThreads = atoi( httpdwinConfig["threads"].c_str() );
 
@@ -524,7 +673,7 @@ int main()
 
         int rc = 0;
         int q = 0;
-        if ((rc = WSAPoll(pollfds, nPorts, 1)) != SOCKET_ERROR) {
+        if ((rc = poll(pollfds, nPorts, 1)) != -1) {
             q++;
             if (q % 10000 == 0)
                 httpdlog("Debug", "Looping in poll");
@@ -597,7 +746,11 @@ int main()
                             else if (rc < 0) {
                                 httpdlog("INFO", "SSL ipv4 connection  error");
                                 isSslAccepted = false;
+#ifdef MAC_TAHOE
+                                close(sslclient);
+#else
                                 closesocket(sslclient);
+#endif
                                 SSL_shutdown(ssl);
                                 SSL_free(ssl);
                                 ssl = 0;
@@ -606,7 +759,11 @@ int main()
                             else {
                                 httpdlog("INFO", "SSL ipv4 connection error something else");
                                 isSslAccepted = false;
+#ifdef MAC_TAHOE
+                                close(sslclient);
+#else
                                 closesocket(sslclient);
+#endif
                                 SSL_shutdown(ssl);
                                 SSL_free(ssl);
                                 ssl = 0;
@@ -671,7 +828,11 @@ int main()
                             else if (rc < 0) {
                                 httpdlog("INFO", "SSL ipv6 connection error");
                                 isSslAccepted = false;
+#ifdef MAC_TAHOE
+                                close(sslclient6);
+#else
                                 closesocket(sslclient6);
+#endif
                                 SSL_shutdown(ssl6);
                                 SSL_free(ssl6);
                                 ssl6 = 0;
@@ -680,7 +841,11 @@ int main()
                             else {
                                 httpdlog("INFO", "SSL ipv6 connection error something else");
                                 isSslAccepted = false;
+#ifdef MAC_TAHOE
+                                close(sslclient6);
+#else
                                 closesocket(sslclient6);
+#endif
                                 SSL_shutdown(ssl6);
                                 SSL_free(ssl6);
                                 ssl6 = 0;
