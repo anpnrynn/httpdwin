@@ -1,6 +1,6 @@
 # HttpdWin
 ## Windows HTTP server with Python backend.     
-## Support for Mac OS tahoe, coming soon.
+## Support for Mac OS tahoe, coming soon. (Should work on linux too)
 
 Windows:
 Compile using visual studio.   
