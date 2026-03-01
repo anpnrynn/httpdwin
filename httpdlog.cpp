@@ -3,6 +3,10 @@
 #include <httpdlog.h>
 #include <mutex>
 #include <chrono>
+#ifdef MAC_TAHOE
+#include <stdio.h>
+#include <stdlib.h>
+#endif
 using namespace std;
 
 #define _CRT_SECURE_NO_WARNINGS
@@ -59,4 +63,14 @@ void httpdlogHdr(const char* level, string info) {
     logmutex.unlock();
     cerr.flush();
 }
+
+#ifdef MAC_TAHOE
+thread_local char correctedDir[256];
+char * HttpdWinDir(const char *folder){
+    strcpy( correctedDir, getenv("HOME"));
+    strcat( correctedDir, &folder[1]);
+    //printf(correctedDir);
+    return correctedDir;
+}
+#endif
 

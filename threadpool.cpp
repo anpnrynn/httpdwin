@@ -1,6 +1,9 @@
 //Copyright Anoop Kumar Narayanan - 2025 //httpdwin
 #define _CRT_SECURE_NO_WARNINGS
 #include <Python.h>
+#ifdef MAC_TAHOE
+#include <sys/socket.h>
+#endif
 #include <threadpool.h>
 #include <httpdlog.h>
 #include <chunkedencoding.h>
@@ -37,7 +40,11 @@ ThreadCommand::ThreadCommand( ){
     port = 8080;
 }
 
+#ifdef MAC_TAHOE
+ThreadCommand::ThreadCommand( Task _task, int _socket, bool _isSsl, bool _isSslAccepted, bool _ipv6, int _p, string _address, SSL* _ssl){
+#else
 ThreadCommand::ThreadCommand( Task _task, SOCKET _socket, bool _isSsl, bool _isSslAccepted, bool _ipv6, int _p, string _address, SSL* _ssl){
+#endif
     task = _task;
     fd = _socket;
     isSsl = _isSsl;
@@ -51,7 +58,11 @@ ThreadCommand::ThreadCommand( Task _task, SOCKET _socket, bool _isSsl, bool _isS
 
 ThreadCommand::~ThreadCommand(){
     if( fd ){
+#ifdef MAC_TAHOE
+        close( fd );
+#else
         closesocket( fd );
+#endif
         fd = 0;
     }
     if( isSsl && ssl ){
@@ -176,7 +187,12 @@ void ThreadPool::getTempFileName(string &tempFileName) {
     uint64_t tNum = tempNum;
     tempNum++;
     tempFileMutex.unlock();
+#ifndef MAC_TAHOE
     tempFileName = "C:\\HttpdWin\\Temp\\PostFileData-" + to_string(tNum) + ".post";
+#else
+    tempFileName = "~/HttpdWin/Temp/PostFileData-" + to_string(tNum) + ".post";
+    tempFileName = HWD( tempFileName.c_str());
+#endif
     //tempFileName = "PostFileData-" + to_string(tNum) + ".post";
 }
 
@@ -600,7 +616,12 @@ void ThreadPool::simpleChunkedResponse(int id , ThreadCommand *cmd, HttpResponse
 string ThreadPool::generateJsonFile() {
     ofstream f;
     string sessionid = info.resp->m_CookieList->size() > 0 ? info.resp->m_CookieList->front().m_gname : "";
+#ifndef MAC_TAHOE
     string jsonfile = "C:\\HttpdWin\\Temp\\_____" + sessionid.substr(0,32) +"_____" + ".json";
+#else
+    string jsonfile = "~/HttpdWin/Temp/_____" + sessionid.substr(0,32) +"_____" + ".json";
+    jsonfile = HWD(jsonfile.c_str());
+#endif
     info.resp->m_jsonFile = jsonfile;
     httpdlog("DEBUG", std::to_string(globalThreadId) + ": Opening input file for script " + jsonfile + ", " + sessionid);
     f.open(jsonfile, ios::out | ios::trunc);
@@ -953,7 +974,12 @@ void ThreadPool::threadpoolFunction(int id ){
 
                             try {
                                 //PyRun_SimpleString("print('Hello from thread!')");
+#ifndef MAC_TAHOE
                                 string scriptFile = "C:\\HttpdWin\\Pages\\"+req->m_RequestFile.substr(1, req->m_RequestFile.length());
+#else
+                                string scriptFile = "~/HttpdWin/Pages/"+req->m_RequestFile.substr(1, req->m_RequestFile.length());
+                                scriptFile = HWD( scriptFile.c_str());
+#endif
                                 httpdlog("WARN", std::to_string(id) + ": Executing script from location : " + scriptFile );
                                 info.req  = req;
                                 info.resp = resp;
@@ -1026,7 +1052,11 @@ void ThreadPool::threadpoolFunction(int id ){
                         delete resp; resp = 0;
                     }
                     httpdlog("WARN", std::to_string(id) + ": Deleting work object " + std::to_string((unsigned long long int)cmd));
+#ifdef MAC_TAHOE
+                    close(cmd->fd);
+#else
                     closesocket(cmd->fd);
+#endif
                     cmd->fd = 0;
                     delete cmd;
                     cmd = 0;
@@ -1257,7 +1287,12 @@ void ThreadPool::threadpoolFunction(int id ){
 
                             try {
                                 //PyRun_SimpleString("print('Hello from thread!')");
+#ifndef MAC_TAHOE
                                 string scriptFile = "C:\\HttpdWin\\Pages\\" + req->m_RequestFile.substr(1, req->m_RequestFile.length());
+#else
+                                string scriptFile = "~/HttpdWin/Pages/" + req->m_RequestFile.substr(1, req->m_RequestFile.length());
+                                scriptFile = HWD(scriptFile.c_str());
+#endif
                                 httpdlog("WARN", std::to_string(id) + ": Executing script from location : " + scriptFile);
                                 info.req = req;
                                 info.resp = resp;
@@ -1337,7 +1372,11 @@ void ThreadPool::threadpoolFunction(int id ){
 
                     httpdlog("WARN", std::to_string(id) + ": Deleting work object " + std::to_string((unsigned long long int)cmd));
                     
+#ifdef MAC_TAHOE
+                    close(cmd->fd);
+#else
                     closesocket(cmd->fd);
+#endif
                     cmd->fd = 0;
                     delete cmd;
                     cmd = 0;
