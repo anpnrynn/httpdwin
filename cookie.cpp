@@ -1,4 +1,7 @@
 #include <cookie.h>
+#ifdef MAC_TAHOE
+#include <string.h>
+#endif
 
 std::random_device rd;
 std::mt19937_64 gen(rd());
@@ -220,9 +223,13 @@ void Cookie::parseCookieString(const std::string& cookieStr) {
 }
 
 void Cookie::getCookieCStr(char* cookieCstr) {
-	cookieCstr[0] = '\0'; // Ensure the std::string is empty before concatenation
-	std::string cookieStr = toString();
-	strcpy_s(cookieCstr, cookieStr.length(), cookieStr.c_str());
+    cookieCstr[0] = '\0'; // Ensure the std::string is empty before concatenation
+    std::string cookieStr = toString();
+#ifdef MAC_TAHOE
+    strncpy(cookieCstr, cookieStr.c_str(), cookieStr.length());
+#else
+    strcpy_s(cookieCstr, cookieStr.length(), cookieStr.c_str());
+#endif
 }
 
 
@@ -247,7 +254,12 @@ CookieManager::~CookieManager() {
 
 void CookieManager::openFile() {
 	std::lock_guard<std::mutex> lock(m_mutex);
-	std::string tempFileName = "C:\\HttpdWin\\Storage\\cookies.dat";
+#ifndef MAC_TAHOE
+    std::string tempFileName = "C:\\HttpdWin\\Storage\\cookies.dat";
+#else
+    std::string tempFileName = HWD("~/HttpdWin/Storage/cookies.dat");
+#endif
+	
 	if (m_file.is_open()) {
 		m_file.close();
 	}
@@ -262,7 +274,11 @@ void CookieManager::openFile() {
 
 void CookieManager::openFileForReading() {
 	std::lock_guard<std::mutex> lock(m_mutex);
-	std::string tempFileName = "C:\\HttpdWin\\Storage\\cookies.dat";
+#ifndef MAC_TAHOE
+    std::string tempFileName = "C:\\HttpdWin\\Storage\\cookies.dat";
+#else
+    std::string tempFileName = HWD("~/HttpdWin/Storage/cookies.dat");
+#endif
 	if (m_file.is_open()) {
 		m_file.close();
 	}
@@ -312,7 +328,11 @@ void CookieManager::saveAll() {
 
 void CookieManager::loadAll(){
 	std::lock_guard<std::mutex> lock(m_mutex);
+#ifndef MAC_TAHOE
 	std::string tempFileName = "C:\\HttpdWin\\Storage\\cookies.dat";
+#else
+    std::string tempFileName = HWD("~/HttpdWin/Storage/cookies.dat");
+#endif
 	if (m_file.is_open()) {
 		std::string line;
 		CookieList* list = 0;

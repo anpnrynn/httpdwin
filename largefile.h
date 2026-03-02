@@ -10,6 +10,7 @@
 #endif
 
 #define _FILE_OFFSET_BITS 64
+//#define _LARGEFILE_SOURCE 1
 
 
 #endif // LARGEFILE_H_INCLUDED

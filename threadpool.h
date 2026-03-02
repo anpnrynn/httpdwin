@@ -5,10 +5,12 @@
 #include <iostream>
 #include <thread>
 #include <atomic>
+#ifndef MAC_TAHOE
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#endif
 #include <stdio.h>
-#include <malloc.h>
+
 #include <version.h>
 #include <chrono>
 #include <queue>
@@ -37,10 +39,18 @@ enum Task{
 class ThreadCommand{
     public:
         ThreadCommand( );
+#ifdef MAC_TAHOE
+        ThreadCommand( Task _task, int _socket, bool _isSsl, bool _isSslaccepted, bool _ipv6, int _p, string address, SSL *_ssl);
+#else
         ThreadCommand( Task _task, SOCKET _socket, bool _isSsl, bool _isSslaccepted, bool _ipv6, int _p, string address, SSL *_ssl);
+#endif
         ~ThreadCommand( );
         Task task;
+#ifdef MAC_TAHOE
+        int fd;
+#else
         SOCKET fd;
+#endif
         bool isSsl;
         bool isSslAccepted;
         bool isIpv6;

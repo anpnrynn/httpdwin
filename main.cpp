@@ -500,7 +500,7 @@ int main()
         ::bind ( sslsrv6, ( const struct sockaddr * ) &sslsrvAddr6, sizeof ( sslsrvAddr6) );
     }while( errno );
 #else
-    while ( bind ( sslsrv6, ( const sockaddr * ) &sslsrvAddr6, sizeof ( sockaddr_in ) ) == SOCKET_ERROR ) {
+    while ( bind ( sslsrv6, ( const sockaddr * ) &sslsrvAddr6, sizeof ( sockaddr_in6 ) ) == SOCKET_ERROR ) {
 
         std::this_thread::sleep_for ( std::chrono::microseconds ( 100000 ) );
         if ( count > 10 ) {
@@ -673,7 +673,11 @@ int main()
 
         int rc = 0;
         int q = 0;
+#ifdef MAC_TAHOE
         if ((rc = poll(pollfds, nPorts, 1)) != -1) {
+#else
+		if ((rc = WSAPoll(pollfds, nPorts, 100)) != -1) {
+#endif
             q++;
             if (q % 10000 == 0)
                 httpdlog("Debug", "Looping in poll");

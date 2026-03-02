@@ -15,8 +15,11 @@ using namespace std::filesystem;
 #include <httpdlog.h>
 
 
-
+#ifndef MAC_TAHOE
 string HttpResponse::pagesFolder = "C:\\HttpdWin\\Pages";
+#else
+string HttpResponse::pagesFolder = "~/HttpdWin/Pages";
+#endif
 extern thread_local int globalThreadId;
 
 map<string,string> HttpResponse::mimeTypes =
@@ -131,12 +134,18 @@ HttpResponse::~HttpResponse() {
 string HttpResponse::filenameCorrection(string filename ){
     size_t pos = 0;
     if( filename == "" || filename == "/" ){
+#ifndef MAC_TAHOE
         filename = "\\index.html";
+#else
+        filename = "/index.html";
+#endif
     } else {
+#ifndef MAC_TAHOE
         while ((pos = filename.find('/', pos)) != std::string::npos) {
             filename.replace(pos, 1, "\\");
             pos++;
         }
+#endif
     }
     filename = HttpResponse::pagesFolder+filename;
     return filename;
@@ -202,6 +211,9 @@ HttpResponse *HttpResponse::CreateFileResponse( string filename ){
     httpdlog("XTRA:", std::to_string(globalThreadId) + ": Creating simple response file ");
     HttpResponse *resp = new HttpResponse("200", "OK", "", "text/plain" , filename );
     resp->m_ActualFile = resp->filenameCorrection(filename );
+#ifdef MACOS_TAHOE
+    resp->m_ActualFile = HWD( resp->m_ActualFile.c_str());
+#endif
     httpdlog("DEBUG:", std::to_string(globalThreadId) + ": Retrieving file : "+ filename );
 
     string extension   = filenameExtension (filename );

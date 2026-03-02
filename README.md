@@ -1,33 +1,40 @@
 # HttpdWin
 ## Windows HTTP server with Python backend.     
+## Support for Mac OS tahoe, coming soon. (Should work on linux too)
 
-
+Windows:
 Compile using visual studio.   
-Supports only python >= 3.13.    
+Supports only python >= 3.13.  
 
+Mac OS:    
+Xcode 26 (Mac OS tahoe)        
+Python >= 3.14 (Install using macports)        
+openssl 3 (Install using macports)    
 
 
 ### Pre-requisites:    
 1. Openssl 3       
 2. Python 3 (Install it using the installer from python website)   
-3. Visual Studio Express (For compilation, you should find the solution file under HttpdWin/HttpdWin.sln )     
+3. Visual Studio Express (For compilation, you should find the solution file under HttpdWin/HttpdWin.sln )
+4. Mac OS tahoe Xcode 26    
      
      
 ### Execution Requirements:    
-Unpack the Release zip file to C:\ drive and find some test pages and script that was used for validation.    
+In Windows, unpack the Release zip file to C:\ drive and find some test pages and script that was used for validation.    
 You need to create public key and private key files, use openssl commands to create them , it should be in PEM format.    
+In Mac OS tahoe, unpack the Release zip file to ~/HttpdWin/ 
 
 
 
 ### NOTE:    
-As of now it runs only from C:\ drive    
-Does not use MinGW neither does it use MSys or WSL.    
-If you are observing a crash, it is because certificate and key files are missing from C:\HttpdWin\Certs\     
+As of now it runs only from C:\ drive in Windows.       
+Does not use MinGW neither does it use MSys or WSL.        
+If you are observing a crash, it is because certificate and key files are missing from C:\HttpdWin\Certs\ in Windows, or ~/HttpdWin/Certs/ in Mac OS tahoe.
 There may be memory leaks.    
 
 
 
-### Last Updated : 02/15/2026 or In Indian date format 15/02/2026      
+### Last Updated : 03/01/2026 or Rest of the world date format 01/03/2026      
 
 
 
@@ -36,6 +43,8 @@ There may be memory leaks.
      Download the release package from release link.
      Uncompress to C:\Httpdwin\
      Make sure all .exe, libs and .dll fils are in C:\HttpdWin\Bin\
+
+	 Package for Mac OS tahoe is yet to be created.
 
 
 
@@ -49,14 +58,16 @@ There may be memory leaks.
      C:\HttpdWin\httpdwin.conf  <- Simple configuration file for httpd server.  
      C:\HttpdWin\httpdwin-errors.log <- Log file of HttpdWin.
 
+	 In Mac OS Tahoe, its ~/HttpdWin/, subfolders remain the same.
+
 
 
 ##### Configuration looks like this:
      #number of threads to launch in httpdwin program         
      threads=40     
-     #http port number for non ssl connections         
+     #http port number for non ssl connections (not working on macos)            
      httpport=8080     
-     #https port number for ssl connections      
+     #https port number for ssl connections (not working on macos)       
      httpsport=8081    
      #ipv4 bind address         
      bindipv4=127.0.0.1    
@@ -92,7 +103,15 @@ There may be memory leaks.
      copy httpdwinpub.pem  C:\HttpdWin\Certs\httpdwinpub6.pem      
      copy httpdwincert.pem C:\HttpdWin\Certs\httpdwincert6.pem     
 
-
+	 Mac OS tahoe:
+	 mkdir -p ~/HttpdWin/Bin ~/HttpdWin/Certs ~/HttpdWin/Pages ~/HttpdWin/Tests ~/HttpdWin/Temp ~/HttpdWin/Storage    
+	 cd ~/HttpdWin/Cert    
+	 openssl req -x509 -newkey rsa:4096 -nodes -keyout httpwinkey.pem -out httpdwincert.pem -days 3650     
+	 openssl x509 -pubkey -noout -in httpdwincert.pem  > httpdwinpub.pem        
+     cp httpdwinkey.pem  httpdwinkey6.pem       
+     cp httpdwinpub.pem  httpdwinpub6.pem       
+     cp httpdwincert.pem httpdwincert6.pem     
+	 
 
 #### Run the executable
      Open command prompt     
@@ -139,7 +158,7 @@ There may be memory leaks.
      HttpdWin.wwwsessionclear();     
 
 
-#### Sample JSON file attached to a particular HTTP request
+#### Sample JSON file attached to a particular HTTP request (The paths in Mac OS tahoe are Unix paths)
      This file is part of the python script's main dict, and is avaiable through the variable "input".
      The other main dict python variable is "sessionid".
      Contents of "C:/HttpdWin/Temp/_____23916213n305844699310g1175293533_____.json" file.
