@@ -20,36 +20,36 @@ void httpdlog(const char *level, string info ){
     auto duration = timenow.time_since_epoch(); // duration since epoch
     auto micros = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
     logmutex.lock();
-    switch(level[0]){
-    case 'D':
-        if( httpdloglevel >= 3)
-            std::cerr<<"DEBUG"<<" : "<<micros<<" : " << info << endl;
-        break;
-    case 'I':
-        if( httpdloglevel >= 2)
-            std::cerr<<"INFO"<<"  : " << micros << " : " <<info<<endl;
-        break;
-    case 'W':
-        if( httpdloglevel >= 1)
-            std::cerr<<"WARN"<<"  : " << micros << " : " <<info<<endl;
-        break;
-    case 'E':
-        if( httpdloglevel >= 0)
-            std::cerr<<"ERROR"<<" : " << micros << " : " <<info<<endl;
-        break;
-    case 'X':
-        if( httpdloglevel >= 4)
-            std::cerr<<"XTRA "<<" : " << micros << " : " <<info<<endl;
-        break;
-    case ' ':
-        if( httpdloglevel >= 0)
-            std::cerr<<"     "<<" : " << micros << " : " <<info<<endl;
-        break;
-    default:
-        if( httpdloglevel >= 4)
-            std::cerr<<"     "<<" : " << micros << " : " <<info<<endl;
-        break;
-    }
+    switch (level[0]) {
+        case 'D':
+            if (httpdloglevel >= 3)
+                std::cerr << "DEBUG" << " : " << micros << " : " << info << endl;
+            break;
+        case 'I':
+            if (httpdloglevel >= 2)
+                std::cerr << "INFO" << "  : " << micros << " : " << info << endl;
+            break;
+        case 'W':
+            if (httpdloglevel >= 1)
+                std::cerr << "WARN" << "  : " << micros << " : " << info << endl;
+            break;
+        case 'E':
+            if (httpdloglevel >= 0)
+                std::cerr << "ERROR" << " : " << micros << " : " << info << endl;
+            break;
+        case 'X':
+            if (httpdloglevel >= 4)
+                std::cerr << "XTRA " << " : " << micros << " : " << info << endl;
+            break;
+        case ' ':
+            if (httpdloglevel >= 0)
+                std::cerr << "     " << " : " << micros << " : " << info << endl;
+            break;
+        default:
+            if (httpdloglevel >= 4)
+                std::cerr << "     " << " : " << micros << " : " << info << endl;
+            break;
+       }
     logmutex.unlock();
     std::cerr.flush();
 }
