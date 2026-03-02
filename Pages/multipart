@@ -1,0 +1,21 @@
+import HttpdWin
+HttpdWin.wwwmime ("text/html")
+HttpdWin.wwwheaderadd ("Set-Value: Helloworld A")
+HttpdWin.wwwheaderadd ("Set-Value-B: Helloworld B")
+HttpdWin.wwwheadercomplete ()
+HttpdWin.wwwprint("<html><head></head><body><h1>Multipart response from python backend</h1><h2>")
+HttpdWin.wwwprint(sessionid)
+HttpdWin.wwwprint("<br/>")
+HttpdWin.wwwprint(input)
+HttpdWin.wwwprint("</h2>")
+import json
+with open(input, 'r') as file:
+    data = json.load(file)
+HttpdWin.wwwprint("<textarea rows=\"40\" cols=\"200\" readonly>")
+if data != None:
+	HttpdWin.wwwprint(json.dumps(data, indent=4))
+HttpdWin.wwwprint("</textarea>")
+HttpdWin.wwwprint("</body></html>")
+HttpdWin.wwwprintend("");
+HttpdWin.wwwsessionclear();
+

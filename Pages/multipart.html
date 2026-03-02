@@ -1,0 +1,33 @@
+<html>
+<head>
+<title> Sending form file </title>
+</head>
+<body>
+<form action="multipart" enctype="multipart/form-data" method="post">
+<!-- <form action="local:test4/index.py" method="post"> -->
+<p>
+Type some text (if you like):<br>
+<input type="text" name="textline1" size="30">
+</p>
+<p>
+Please specify a file, or a set of files:<br>
+<input type="file" name="datafile1" size="40">
+<input type="file" name="datafile2" size="40">
+<input type="file" name="datafile3" size="40">
+<input type="file" name="datafile4" size="40">
+<input type="file" name="datafile5" size="40">
+</p>
+<p>
+Type some text (if you like):<br>
+<input type="text" name="textline2" size="30">
+</p>
+<p>
+Type some text (if you like):<br>
+<input type="text" name="textline3" size="30">
+</p>
+<div>
+<input type="submit" value="Send">
+</div>
+</form>
+</body>
+</html>

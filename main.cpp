@@ -269,9 +269,10 @@ int main()
     if( sessionIdName  == "" )
 		sessionIdName = "SessionID";
 	sessionMaxAge = strtoull(httpdwinConfig["maxage"].c_str(), NULL, 10);
-    if (sessionMaxAge <= 0)
-		sessionMaxAge = 1 * 60 * 60; //1 hour default session max age
-    
+    if (sessionMaxAge <= 0){
+        httpdlog("WARN", "Max age not found using default value of 3600 for session");
+        sessionMaxAge = 1 * 60 * 60; //1 hour default session max age
+    }
 
     httpdlog("INFO", "Configuration read");
 #ifdef MAC_TAHOE
@@ -674,7 +675,7 @@ int main()
         int rc = 0;
         int q = 0;
 #ifdef MAC_TAHOE
-        if ((rc = poll(pollfds, nPorts, 1)) != -1) {
+        if ((rc = ::poll(pollfds, nPorts, 100)) != -1) {
 #else
 		if ((rc = WSAPoll(pollfds, nPorts, 100)) != -1) {
 #endif
@@ -861,7 +862,6 @@ int main()
 
 
                     if (ssl6 && isSslAccepted) {
-                        
                         //httpdlog("WARN", "Assigning task SSL ipv6 to threadpool  : " + std::to_string((unsigned long long int)t));
                         ipAddressStr[0] = 0;
                         inet_ntop(AF_INET6, &sslclientAddr6.sin6_addr, ipAddressStr, sizeof(ipAddressStr));
@@ -877,6 +877,7 @@ int main()
             saveCount++;
             if (saveCount > 1000) {
                 cookieManager.openFile();
+                cookieManager.clearExpired();
                 cookieManager.saveAll();
                 cookieManager.closeFile();
                 saveCount = 0;

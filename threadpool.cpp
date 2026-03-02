@@ -273,7 +273,6 @@ void ThreadPool::writeToTempFile(string tempFileName, ThreadCommand *cmd, HttpRe
 
 void ThreadPool::sendHttpHeader() {
     info.resp->m_IsChunked = true;
-    int i = 0;
     //httpdlog("INFO", std::to_string(id) + ": Building response header ce : " + extension);
     info.resp->BuildResponseHeader(0);
     info.resp->m_Buffer[info.resp->m_ResponseHeaderLen] = 0;
@@ -371,7 +370,7 @@ void ThreadPool::sendHttpData(char *data, size_t len) {
 	else {
         ChunkedEncoding* ce = new ChunkedEncoding();
         ce->setData(data, len, false);
-        int i = 0, partial = 0, n = 0;
+        int partial = 0, n = 0;
         count = 0;
         do {
             if (info.cmd->isSsl) {
@@ -418,7 +417,7 @@ void ThreadPool::sendHttpData(char *data, size_t len) {
 void ThreadPool::sendHttpDataFinal(char* data, size_t len) {
     ChunkedEncoding* ce = new ChunkedEncoding();
     ce->setData(data, len, true);
-    int i = 0, partial = 0, n = 0;
+    int partial = 0, n = 0;
     int count = 0;
     do {
         if (info.cmd->isSsl) {
@@ -470,6 +469,7 @@ void ThreadPool::setCookie(string name, string value, string expires, uint64_t m
         }
         if (gname != "") {
             Cookie c(gname, name, value, expires, maxAge, secure, httpOnly, path, domain);
+            c.touchTime();
             info.resp->m_CookieList->push_back(c);
             httpdlog("DEBUG", std::to_string(globalThreadId) + ": Added cookie, setting max age to :" + name +", maxage=" + std::to_string(maxAge) );
         }
@@ -564,7 +564,8 @@ void ThreadPool::simpleChunkedResponse(int id , ThreadCommand *cmd, HttpResponse
 
     i = 0;
     while (i <= 10000) {
-        partial = 0, n = 0;
+        partial = 0;
+        n = 0;
 
         if (i < 10000) {
             snprintf((char*)(resp->m_Buffer), MAXBUFFER, "%s - This is chunked transfer encoding number = %d  from thread = %d:", simplestring, i, id);
@@ -617,9 +618,9 @@ string ThreadPool::generateJsonFile() {
     ofstream f;
     string sessionid = info.resp->m_CookieList->size() > 0 ? info.resp->m_CookieList->front().m_gname : "";
 #ifndef MAC_TAHOE
-    string jsonfile = "C:\\HttpdWin\\Temp\\_____" + sessionid.substr(0,32) +"_____" + ".json";
+    string jsonfile = "C:\\HttpdWin\\Temp\\_____" + sessionid.substr(0,128+16) +"_____" + ".json";
 #else
-    string jsonfile = "~/HttpdWin/Temp/_____" + sessionid.substr(0,32) +"_____" + ".json";
+    string jsonfile = "~/HttpdWin/Temp/_____" + sessionid.substr(0,128+16) +"_____" + ".json";
     jsonfile = HWD(jsonfile.c_str());
 #endif
     info.resp->m_jsonFile = jsonfile;
@@ -706,7 +707,6 @@ void ThreadPool::addHttpHeader(string value) {
 
 void ThreadPool::threadpoolFunction(int id ){
     bool standby = true;
-    bool dataNotReceived = true;
     httpdlog("INFO", std::to_string(id ) + ": Thread starting up" );
     globalThreadId = id;
     while ( true ){
@@ -837,7 +837,6 @@ void ThreadPool::threadpoolFunction(int id ){
                         resp->m_Fhandle.seekg(0, ios::beg);
 
                         long long int totalBytes = 0;
-                        long long int totalFileBytes = 0;
                         long long int bufferBytes = resp->m_ResponseHeaderLen;
                         long long int offset = 0;
                         long long int partial = 0;
@@ -889,6 +888,7 @@ void ThreadPool::threadpoolFunction(int id ){
                             Cookie* c = 0;
                             if (req->m_CookieList == 0 || (req->m_CookieList != 0 && req->m_CookieList->size() == 0)) {
                                 c = new Cookie("", "", "");
+                                c->touchTime();
                                 CookieList* cl = new CookieList();
                                 bool status = false;
 
@@ -929,6 +929,7 @@ void ThreadPool::threadpoolFunction(int id ){
                                     else {
                                         httpdlog("DEBUG", std::to_string(id) + ": Cookie not present in Map : " + (*it).m_gname +", " + (*it).m_value);
                                         Cookie* c = new Cookie("", "", "");
+                                        c->touchTime();
                                         cl = new CookieList();
                                         bool status = false;
 
@@ -1149,7 +1150,6 @@ void ThreadPool::threadpoolFunction(int id ){
                         resp->m_Fhandle.seekg(0, ios::beg);
 
                         long long int totalBytes = 0;
-                        long long int totalFileBytes = 0;
                         long long int bufferBytes = resp->m_ResponseHeaderLen;
                         long long int offset = 0;
                         long long int partial = 0;
@@ -1204,6 +1204,7 @@ void ThreadPool::threadpoolFunction(int id ){
                             Cookie* c = 0;
                             if (req->m_CookieList == 0 || (req->m_CookieList != 0 && req->m_CookieList->size() == 0)) {
                                 c = new Cookie("", "", "");
+                                c->touchTime();
                                 CookieList* cl = new CookieList();
                                 bool status = false;
 
@@ -1244,6 +1245,7 @@ void ThreadPool::threadpoolFunction(int id ){
                                     else {
                                         httpdlog("DEBUG", std::to_string(id) + ": Cookie not present in Map : " + (*it).m_gname + ", " + (*it).m_value);
                                         Cookie* c = new Cookie("", "", "");
+                                        c->touchTime();
                                         cl = new CookieList();
                                         bool status = false;
 
