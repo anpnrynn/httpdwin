@@ -1,0 +1,20 @@
+import HttpdWin
+HttpdWin.wwwmime ("text/html")
+HttpdWin.wwwheaderadd ("Set-Value: Helloworld A")
+HttpdWin.wwwheaderadd ("Set-Value-B: Helloworld B")
+HttpdWin.wwwheadercomplete ()
+HttpdWin.wwwprint("<html><head></head><body><h1>This code works from python !!!</h1><h2>")
+HttpdWin.wwwprint(sessionid)
+HttpdWin.wwwprint("<br/>"+input+"<br/>")
+HttpdWin.wwwprint("</h2>")
+import json
+with open(input, 'r') as file:
+    data = json.load(file)
+HttpdWin.wwwprint("<textarea rows=\"40\" cols=\"200\" readonly>");
+HttpdWin.wwwprint("JSON DATA:");
+HttpdWin.wwwprint(json.dumps(data, indent=4));
+HttpdWin.wwwprint("</textarea>");
+HttpdWin.wwwprint("</body></html>")
+HttpdWin.wwwprintend("");
+#HttpdWin.wwwsessionclear();
+

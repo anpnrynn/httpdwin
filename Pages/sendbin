@@ -1,0 +1,21 @@
+import HttpdWin
+import platform
+from pathlib import Path
+os_name = platform.system()
+home= Path.home()
+image=""
+if os_name == "Windows":
+	image="C:\\Httpdwin\\Pages\\landscape.png"
+else:
+	image=str(home)+"/HttpdWin/Pages/landscape.png"
+
+HttpdWin.wwwmime ("application/octet-stream")
+HttpdWin.wwwheadercomplete ()
+import os
+import sys
+
+with open(image, 'rb') as file:
+	content = file.read()
+	HttpdWin.wwwbytesprint(content)
+
+HttpdWin.wwwprintend("")

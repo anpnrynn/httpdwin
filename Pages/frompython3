@@ -1,0 +1,25 @@
+from HttpdWin import *
+wwwmime ("text/html")
+wwwheaderadd ("Set-Value: Helloworld A")
+wwwheaderadd ("Set-Value-B: Helloworld B")
+import json
+with open(input, 'r') as file:
+    data = json.load(file)
+wwwcookieset ("MAX", "VALUE", "", 3600*10, False, False, "", "" ) 
+wwwcookieset ("MAX1", "VALUE1", "", 86400*10, False, False, "", "" ) 
+wwwcookieset ("MAX2", "VALUE1", "", 86400*10, False, False, "", "" ) 
+wwwcookieset ("MAX3", "VALUE1", "", 86400*10, False, False, "", "" ) 
+wwwcookieset ("MAX4", "VALUE1", "", 86400*10, False, False, "", "" ) 
+wwwcookiedel ("MAX")
+wwwheadercomplete ()
+wwwprint("<html><head></head><body><h1>This code works from python !!!</h1><h4>")
+wwwprint(sessionid)
+wwwprint("<br/>"+input+"<br/>")
+wwwprint("</h4>")
+wwwprint("<textarea rows=\"40\" cols=\"200\" readonly>");
+wwwprint("JSON DATA:");
+wwwprint(json.dumps(data, indent=4));
+wwwprint("</textarea>");
+wwwprint("</body></html>")
+wwwprintend("");
+#wwwsessionclear();
