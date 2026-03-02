@@ -19,13 +19,19 @@ uint64_t randomNumber() {
 }
 
 Cookie::Cookie() :m_gname(""), m_name(""), m_value(""), m_expires(""), m_maxage(sessionMaxAge), m_secure(false), m_httpOnly(false), m_path(""), m_domain("") {
-	m_maxage = sessionMaxAge;
+    if( m_maxage <= 0 ){
+        m_maxage = sessionMaxAge;
+    }
+    m_time = 0;
 }
 
 Cookie::Cookie(const std::string& gname, const std::string& name, const std::string& value, std::string expires, uint64_t maxage , bool secure, bool httpOnly , std::string path , std::string domain)
 	: m_gname(name), m_name(name), m_value(value), m_expires(expires), m_maxage(maxage), m_secure(secure), m_httpOnly(httpOnly), m_path(path), m_domain(domain)
 {
-	
+    if( m_maxage <= 0 ){
+        m_maxage = sessionMaxAge;
+    }
+    m_time = 0;
 }
 
 void Cookie::generateSessionId() {
@@ -33,8 +39,15 @@ void Cookie::generateSessionId() {
 		Cookie::generateRandomSessionId(m_value);
 		m_gname = m_value;
 		m_name = sessionIdName;
+        touchTime();
 	}
 	httpdlog("DEBUG", "Cookie created: " + toString());
+}
+
+void Cookie::touchTime(){
+    const auto now = std::chrono::system_clock::now();
+    const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
+    m_time = seconds.count();
 }
 
 
@@ -237,7 +250,7 @@ CookieMap  CookieManager::m_cookies;
 std::mutex CookieManager::m_mutex;
 
 CookieManager::CookieManager() {
-
+    m_cookieGroupCleared = 0;
 }
 
 CookieManager::~CookieManager() {
@@ -250,6 +263,7 @@ CookieManager::~CookieManager() {
 		}
 	}
 	m_cookies.clear();
+    m_cookieGroupCleared = 0;
 }
 
 void CookieManager::openFile() {
@@ -463,6 +477,47 @@ void CookieManager::clear(std::string name) {
 			httpdlog("DEBUG", "Cookie found in map but is null ");
 		}
 	}
+}
+
+void CookieManager::clearExpired() {
+    CookieList* list = 0;
+    const auto now = std::chrono::system_clock::now();
+    const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch());
+    long long currentSeconds = seconds.count();
+    std::lock_guard<std::mutex> lock(m_mutex);
+    CookieMap::iterator it = m_cookies.begin();
+    bool cookieClearFlag = false;
+    while (it != m_cookies.end()) {
+        list = it->second;
+        if (list && list->size() > 0) {
+            CookieList::iterator listit = list->begin();
+            cookieClearFlag = false;
+            while( listit != list->end() ){
+                if( listit->m_time > 0  && listit->m_maxage > 0  ) {
+                    if( listit->m_time + listit->m_maxage < currentSeconds ){
+                        if( listit->m_gname.size() > 0 ){
+                            string jsonfile = "~/HttpdWin/Temp/_____" + listit->m_gname.substr(0,128+16) +"_____" + ".json";
+                            jsonfile = HWD(jsonfile.c_str());
+                            std::remove( jsonfile.c_str() );
+                        }
+                        listit = list->erase( listit );
+                        cookieClearFlag = true;
+                    }
+                }
+                listit++;
+            }
+        }
+        
+        if( list->size() == 0 || cookieClearFlag ){
+            m_cookieGroupCleared++;
+            list->clear();
+            delete list;
+            it = m_cookies.erase(it);
+        } else {
+            it++;
+        }
+    }
+    httpdlog("WARN", "Number of Cookies Cleared = " + std::to_string(m_cookieGroupCleared) );
 }
 
 

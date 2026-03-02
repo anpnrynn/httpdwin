@@ -21,6 +21,7 @@ class Cookie {
 	std::string m_name;
 	std::string m_value;
 	uint64_t m_maxage; // in seconds
+    uint64_t m_time;
 	std::string m_expires;
 	bool   m_secure;
 	bool   m_httpOnly;
@@ -29,8 +30,9 @@ class Cookie {
 	std::string m_domain;
 
 	Cookie();
-	Cookie(const std::string& gname, const std::string& name, const std::string& value, std::string expires = "", uint64_t maxage = 1 * 60 * 60, bool secure = true, bool httpOnly = false, std::string path = "", std::string domain = "");
+	Cookie(const std::string& gname, const std::string& name, const std::string& value, std::string expires = "", uint64_t maxage = 0, bool secure = true, bool httpOnly = false, std::string path = "", std::string domain = "");
 	void generateSessionId();
+    void touchTime();
 
 	bool operator==(const Cookie& other) const {
 		return m_gname == other.m_gname;
@@ -50,7 +52,8 @@ typedef std::unordered_map<std::string, CookieList*> CookieMap;
 
 class CookieManager {
 	public:
-	static CookieMap m_cookies;
+	static   CookieMap m_cookies;
+    uint64_t m_cookieGroupCleared;
 	static std::mutex m_mutex;
 	fstream m_file;
 
@@ -70,6 +73,7 @@ class CookieManager {
 	void get(string name, Cookie* cookie);
 	void set(const Cookie& cookie);
 	void clear(std::string name);
+    void clearExpired();
 };
 
 
