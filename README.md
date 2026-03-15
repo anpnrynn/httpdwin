@@ -104,13 +104,28 @@ There may be memory leaks.
      copy httpdwincert.pem C:\HttpdWin\Certs\httpdwincert6.pem     
 
 	 Mac OS tahoe:
+	 Download the .dmg file from the release.
+	 Mount the dmg image file.
+	 Run firstinstall_setup_run.sh file. Like this: $ zsh firstinstall_setup_run.sh
+	 Do the following:
+	 cd ~/HttpdWin/Certs    
+	 openssl req -x509 -newkey rsa:4096 -nodes -keyout httpdwinkey.pem -out httpdwincert.pem -days 3650     
+	 openssl x509 -pubkey -noout -in httpdwincert.pem  > httpdwinpub.pem        
+     cp httpdwinkey.pem  httpdwinkey6.pem       
+     cp httpdwinpub.pem  httpdwinpub6.pem       
+     cp httpdwincert.pem httpdwincert6.pem 
+	 Run the HttpdWin binary from finder.
+
+	 If you want to set it up manually:
 	 mkdir -p ~/HttpdWin/Bin ~/HttpdWin/Certs ~/HttpdWin/Pages ~/HttpdWin/Tests ~/HttpdWin/Temp ~/HttpdWin/Storage    
-	 cd ~/HttpdWin/Cert    
-	 openssl req -x509 -newkey rsa:4096 -nodes -keyout httpwinkey.pem -out httpdwincert.pem -days 3650     
+	 cd ~/HttpdWin/Certs    
+	 openssl req -x509 -newkey rsa:4096 -nodes -keyout httpdwinkey.pem -out httpdwincert.pem -days 3650     
 	 openssl x509 -pubkey -noout -in httpdwincert.pem  > httpdwinpub.pem        
      cp httpdwinkey.pem  httpdwinkey6.pem       
      cp httpdwinpub.pem  httpdwinpub6.pem       
      cp httpdwincert.pem httpdwincert6.pem     
+
+	 
 	 
 
 #### Run the executable
