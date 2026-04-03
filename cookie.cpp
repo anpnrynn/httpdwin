@@ -2,6 +2,7 @@
 #ifdef MAC_TAHOE
 #include <string.h>
 #endif
+#include <chrono>
 
 std::random_device rd;
 std::mt19937_64 gen(rd());
@@ -496,8 +497,12 @@ void CookieManager::clearExpired() {
                 if( listit->m_time > 0  && listit->m_maxage > 0  ) {
                     if( listit->m_time + listit->m_maxage < currentSeconds ){
                         if( listit->m_gname.size() > 0 ){
+#ifdef MAC_TAHOE
                             string jsonfile = "~/HttpdWin/Temp/_____" + listit->m_gname.substr(0,128+16) +"_____" + ".json";
-                            jsonfile = HWD(jsonfile.c_str());
+							jsonfile = HWD(jsonfile.c_str());
+#else
+							string jsonfile = "C:/HttpdWin/Temp/_____" + listit->m_gname.substr(0, 128 + 16) + "_____" + ".json";
+#endif
                             std::remove( jsonfile.c_str() );
                         }
                         listit = list->erase( listit );
