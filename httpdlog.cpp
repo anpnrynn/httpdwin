@@ -66,9 +66,15 @@ void httpdlogHdr(const char* level, string info) {
 }
 
 #ifdef MAC_TAHOE
-thread_local char correctedDir[2048];
+thread_local char correctedDir[2048] = {0};
+thread_local char homeDir[2048] = {0};
 char * HttpdWinDir(const char *folder){
-    strcpy( correctedDir, getenv("HOME"));
+    if( homeDir[0] == 0 ){
+	strcpy( homeDir, getenv("HOME"));
+        strcpy( correctedDir, homeDir);
+    } else {
+        strcpy( correctedDir, homeDir);
+    }
     strcat( correctedDir, &folder[1]);
     //printf(correctedDir);
     return correctedDir;
