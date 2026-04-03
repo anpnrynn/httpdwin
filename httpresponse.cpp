@@ -211,7 +211,7 @@ HttpResponse *HttpResponse::CreateFileResponse( string filename ){
     httpdlog("XTRA:", std::to_string(globalThreadId) + ": Creating simple response file ");
     HttpResponse *resp = new HttpResponse("200", "OK", "", "text/plain" , filename );
     resp->m_ActualFile = resp->filenameCorrection(filename );
-#ifdef MACOS_TAHOE
+#ifdef MAC_TAHOE
     resp->m_ActualFile = HWD( resp->m_ActualFile.c_str());
 #endif
     httpdlog("DEBUG:", std::to_string(globalThreadId) + ": Retrieving file : "+ filename );

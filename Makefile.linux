@@ -1,0 +1,20 @@
+
+
+SRCS=cookie.cpp httpconnection.cpp httpdlog.cpp httpheaders.cpp httprequest.cpp \
+     httpresponse.cpp threadpool.cpp main.cpp
+
+
+HDRS=chunkedencoding.h cookie.h debuglog.h httpconnection.h httpdlog.h \
+     httprequest.h httpresponse.h largefile.h threadpool.h version.h
+
+CFLAGS=-std=c++17 -DMAC_TAHOE -DLINUX -I./ -I/usr/include/python3.12/ \
+       -fno-strict-overflow -Wsign-compare  -DNDEBUG -g -O2 -Wall -DPY_SSIZE_T_CLEAN
+
+LIBS=-ldl -lm -lssl -lcrypto -L/usr/lib/x86_64-linux-gnu/ -L/usr/lib/python3.12/ -lpython3.12
+
+all:httpdwin
+
+
+httpdwin:
+	g++ $(SRCS) -o HttpdWin.exe $(CFLAGS) $(LIBS)
+	
