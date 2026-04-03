@@ -166,18 +166,16 @@ void ThreadPool::taskDone(int i){
 
 
 size_t ThreadPool::isFullHeaderPresent( char *data, size_t len ){
-    size_t i = 0;
-    char ch = 0;
-    while( i < len ){
-        ch = data[i];
-        if( ch == '\r')
-        {
-            if( data[i+1] == '\n' && data[i+2] == '\r' && data[i+3] == '\n' ){
-                httpdlog("INFO", std::to_string( globalThreadId) + ": isFullHeaderPresent: Data starts here : "+std::to_string(i+4));
-                return i+4;
-            }
+    data[len] = 0;
+    if( len < MAXBUFFER ){
+        char *ret = strstr(data, "\r\n\r\n");
+        if( ret == NULL ){
+            return 0;
+        } else {
+            return (size_t)(ret-data)+4;
         }
-        i++;
+    } else {
+        return 1;
     }
     return 0;
 }
@@ -766,14 +764,19 @@ void ThreadPool::threadpoolFunction(int id ){
                 int rc = 0;
                 int count = 0;
                 while( true ){
-                    rc = SSL_read_ex ( cmd->ssl, req->m_Buffer, MAXBUFFER - req->m_Len, &nBytes );
+                    rc = SSL_read_ex ( cmd->ssl, &(req->m_Buffer[req->m_Len]), MAXBUFFER - req->m_Len, &nBytes );
                     if( nBytes > 0 && nBytes <= MAXBUFFER - req->m_Len){
                         count = 0;
                         dataStartPresent   = 0;
-                        dataStartPresent   = ThreadPool::isFullHeaderPresent((char*)&(req->m_Buffer[req->m_Len]), nBytes );
+                        dataStartPresent   = ThreadPool::isFullHeaderPresent((char*)(req->m_Buffer), req->m_Len + nBytes );
                         req->m_Len += nBytes;
                         if( dataStartPresent == 0 ){
                             dataStart += nBytes;
+                        } else if ( dataStartPresent == 1 ){
+                            httpdlog("ERROR", std::to_string(id) + ": Header size exceeds "+std::to_string(MAXBUFFER) );
+                            dataStart += dataStartPresent;
+                            //we need to safely exit
+                            break;
                         } else {
                             dataStart += dataStartPresent;
                             break;
@@ -797,6 +800,20 @@ void ThreadPool::threadpoolFunction(int id ){
                             break;
                         }
                     }
+                }
+                
+                if ( dataStartPresent ==  1 && cmd ){
+                    //1 byte header isn't right. Just exit.
+                    httpdlog("WARN", std::to_string(id) + ": Deleting work object " + std::to_string((unsigned long long int)cmd));
+#ifdef MAC_TAHOE
+                    close(cmd->fd);
+#else
+                    closesocket(cmd->fd);
+#endif
+                    
+                    cmd->fd = 0;
+                    delete cmd;
+                    cmd = 0;
                 }
 
                 if (!cmd) {
@@ -1076,16 +1093,20 @@ void ThreadPool::threadpoolFunction(int id ){
                 req->m_Len = 0;
                 int count = 0;
                 while (true) {
-                    nBytes = recv(cmd->fd, (char*)req->m_Buffer, MAXBUFFER - req->m_Len, 0);
+                    nBytes = recv(cmd->fd, (char*)&(req->m_Buffer[req->m_Len]), MAXBUFFER - req->m_Len, 0);
                     if (nBytes > 0 && nBytes <= MAXBUFFER - req->m_Len ) {
                         count = 0;
-                        dataStartPresent = 0;
-                        dataStartPresent = ThreadPool::isFullHeaderPresent((char*)&(req->m_Buffer[req->m_Len]), nBytes);
+                        dataStartPresent   = 0;
+                        dataStartPresent   = ThreadPool::isFullHeaderPresent((char*)(req->m_Buffer), req->m_Len + nBytes );
                         req->m_Len += nBytes;
-                        if (dataStartPresent == 0) {
+                        if( dataStartPresent == 0 ){
                             dataStart += nBytes;
-                        }
-                        else {
+                        }  else if ( dataStartPresent == 1 ){
+                            httpdlog("ERROR", std::to_string(id) + ": Header size exceeds "+std::to_string(MAXBUFFER) );
+                            dataStart += dataStartPresent;
+                            //we need to safely exit
+                            break;
+                        } else {
                             dataStart += dataStartPresent;
                             break;
                         }
@@ -1108,6 +1129,19 @@ void ThreadPool::threadpoolFunction(int id ){
                         httpdlog("XTRA", std::to_string(id) + ": socket received 0 Bytes : " + std::to_string(nBytes));
                         std::this_thread::sleep_for(std::chrono::microseconds(10));
                     }
+                }
+                
+                if ( dataStartPresent ==  1 && cmd ){
+                     //1 byte header isn't right. Just exit.
+                    httpdlog("WARN", std::to_string(id) + ": Deleting work object " + std::to_string((unsigned long long int)cmd));
+#ifdef MAC_TAHOE
+                    close(cmd->fd);
+#else
+                    closesocket(cmd->fd);
+#endif
+                    cmd->fd = 0;
+                    delete cmd;
+                    cmd = 0;
                 }
 
                 if (!cmd) {
@@ -1371,9 +1405,8 @@ void ThreadPool::threadpoolFunction(int id ){
                         delete resp;
                         resp = 0;
                     }
-
-                    httpdlog("WARN", std::to_string(id) + ": Deleting work object " + std::to_string((unsigned long long int)cmd));
                     
+                    httpdlog("WARN", std::to_string(id) + ": Deleting work object " + std::to_string((unsigned long long int)cmd));
 #ifdef MAC_TAHOE
                     close(cmd->fd);
 #else

@@ -105,20 +105,6 @@ public:
 		size = count + size + 2;
 	}
 
-	/*
-	void sendData(int fd) {
-		int n = 0;
-		do {
-			int n1 = write(fd, data, size);
-			if (n1 > 0) {
-				n += n1;
-			}
-			else {
-				//httpdlog("INFO: sending data failure \n");
-			}
-		} while (n < size);
-	}
-	*/
 };
 
 
