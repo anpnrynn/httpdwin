@@ -1,20 +1,45 @@
 
+CC=gcc
+CPP=g++
+LIBS=-lssl -lcrypto -L/usr/lib64/ -ldl  -lm
+INC=-I./ -fno-strict-overflow -Wsign-compare -fexceptions -mbranch-protection=standard   -DDYNAMIC_ANNOTATIONS_ENABLED=1 -DNDEBUG -fexceptions -mbranch-protection=standard
+python_version:=$(shell bash -c 'read -p "Enter Python Version:" python_version; echo $$python_version;')
+LIBS:=$(LIBS) -lpython$(python_version)
+INC:=$(INC) -I/usr/include/python$(python_version)
 
-SRCS=cookie.cpp httpconnection.cpp httpdlog.cpp httpheaders.cpp httprequest.cpp \
-     httpresponse.cpp threadpool.cpp main.cpp
+#Linux should be able to use mac tahoe flag
+#If anything additional is required for linux, a new macro -DFOR_LILNUX will be added.
+FLAGS=-DMAC_TAHOE -Wall -std=c++17 
+OBJS=cookie.o httpdlog.o httprequest.o httpconnection.o httpheaders.o httpresponse.o threadpool.o main.o
 
+all:HttpdWin
 
-HDRS=chunkedencoding.h cookie.h debuglog.h httpconnection.h httpdlog.h \
-     httprequest.h httpresponse.h largefile.h threadpool.h version.h
-
-CFLAGS=-std=c++17 -DMAC_TAHOE -DLINUX -I./ -I/usr/include/python3.12/ \
-       -fno-strict-overflow -Wsign-compare  -DNDEBUG -g -O2 -Wall -DPY_SSIZE_T_CLEAN
-
-LIBS=-ldl -lm -lssl -lcrypto -L/usr/lib/x86_64-linux-gnu/ -L/usr/lib/python3.12/ -lpython3.12
-
-all:httpdwin
-
-
-httpdwin:
-	g++ $(SRCS) -o HttpdWin.exe $(CFLAGS) $(LIBS)
+cookie.o:cookie.cpp
+	$(CPP) cookie.cpp -c -o cookie.o $(INC) $(FLAGS) 
 	
+httpdlog.o:httpdlog.cpp
+	$(CPP) httpdlog.cpp -c -o httpdlog.o $(INC) $(FLAGS) 
+	
+httprequest.o:httprequest.cpp
+	$(CPP) httprequest.cpp -c -o httprequest.o $(INC) $(FLAGS) 
+
+httpconnection.o:httpconnection.cpp 
+	$(CPP) httpconnection.cpp -c -o httpconnection.o $(INC) $(FLAGS) 
+	
+httpheaders.o:httpheaders.cpp
+	$(CPP) httpheaders.cpp -c -o httpheaders.o $(INC) $(FLAGS) 
+	
+httpresponse.o:httpresponse.cpp 
+	$(CPP) httpresponse.cpp -c -o httpresponse.o $(INC) $(FLAGS) 
+
+threadpool.o:threadpool.cpp
+	$(CPP) threadpool.cpp -c -o threadpool.o $(INC) $(FLAGS) 
+	
+main.o:main.cpp
+	$(CPP) main.cpp -c -o main.o $(INC) $(FLAGS) 
+
+HttpdWin:$(OBJS)
+	$(CPP) $(OBJS) -o HttpdWinLinux $(LIBS) 
+
+clean:
+	rm -f *.o core.* HttpdWinLinux
