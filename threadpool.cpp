@@ -763,6 +763,15 @@ void ThreadPool::threadpoolFunction(int id ){
                 req->m_Len = 0;
                 int rc = 0;
                 int count = 0;
+#ifdef MAC_TAHOE
+		struct timeval tv;
+                tv.tv_sec = 1;
+                tv.tv_usec = 0;
+                setsockopt(cmd->fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
+#else
+                DWORD timeout = 1000; // 1 second
+                setsockopt(cmd->fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
+#endif
                 while( true ){
                     rc = SSL_read_ex ( cmd->ssl, &(req->m_Buffer[req->m_Len]), MAXBUFFER - req->m_Len, &nBytes );
                     if( nBytes > 0 && nBytes <= MAXBUFFER - req->m_Len){
@@ -781,7 +790,7 @@ void ThreadPool::threadpoolFunction(int id ){
                         }
                     } else if ( nBytes == 0 || nBytes > MAXBUFFER - req->m_Len){
                         if( rc == 0 ){
-                            if (count++ > 50) {
+                            if (count++ > 20) {
                                 httpdlog("ERROR", std::to_string(id) + ": SSL socket received 0 data 50 times, breaking out of loop");
                                 delete cmd;
                                 cmd = 0;
@@ -1090,6 +1099,16 @@ void ThreadPool::threadpoolFunction(int id ){
                 int nBytes = 0;
                 req->m_Len = 0;
                 int count = 0;
+#ifdef MAC_TAHOE
+                struct timeval tv;
+                tv.tv_sec = 1;
+                tv.tv_usec = 0;
+                setsockopt(cmd->fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
+#else
+                DWORD timeout = 1000; // 1 second
+                setsockopt(cmd->fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
+#endif
+
                 while (true) {
                     nBytes = recv(cmd->fd, (char*)&(req->m_Buffer[req->m_Len]), MAXBUFFER - req->m_Len, 0);
                     if (nBytes > 0 && nBytes <= MAXBUFFER - req->m_Len ) {
@@ -1116,7 +1135,7 @@ void ThreadPool::threadpoolFunction(int id ){
                         break;
                     }
                     else {
-                        if (count++ > 50) {
+                        if (count++ > 20) {
                             httpdlog("ERROR", std::to_string(id) + ": socket received 0 data 50 times, breaking out of loop");
                             delete cmd;
                             cmd = 0;
