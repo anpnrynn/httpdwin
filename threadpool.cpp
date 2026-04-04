@@ -167,7 +167,7 @@ void ThreadPool::taskDone(int i){
 
 size_t ThreadPool::isFullHeaderPresent( char *data, size_t len ){
     data[len] = 0;
-    if( len < MAXBUFFER ){
+    if( len < MAXBUFFER - 4 ){
         char *ret = strstr(data, "\r\n\r\n");
         if( ret == NULL ){
             return 0;
@@ -771,17 +771,15 @@ void ThreadPool::threadpoolFunction(int id ){
                         dataStartPresent   = ThreadPool::isFullHeaderPresent((char*)(req->m_Buffer), req->m_Len + nBytes );
                         req->m_Len += nBytes;
                         if( dataStartPresent == 0 ){
-                            dataStart += nBytes;
+                            dataStart = dataStartPresent;
                         } else if ( dataStartPresent == 1 ){
                             httpdlog("ERROR", std::to_string(id) + ": Header size exceeds "+std::to_string(MAXBUFFER) );
-                            dataStart += dataStartPresent;
-                            //we need to safely exit
                             break;
                         } else {
-                            dataStart += dataStartPresent;
+                            dataStart = dataStartPresent;
                             break;
                         }
-                    } else if ( nBytes == 0 || nBytes > MAXBUFFER ){
+                    } else if ( nBytes == 0 || nBytes > MAXBUFFER - req->m_Len){
                         if( rc == 0 ){
                             if (count++ > 50) {
                                 httpdlog("ERROR", std::to_string(id) + ": SSL socket received 0 data 50 times, breaking out of loop");
@@ -1100,14 +1098,13 @@ void ThreadPool::threadpoolFunction(int id ){
                         dataStartPresent   = ThreadPool::isFullHeaderPresent((char*)(req->m_Buffer), req->m_Len + nBytes );
                         req->m_Len += nBytes;
                         if( dataStartPresent == 0 ){
-                            dataStart += nBytes;
+                            dataStart = dataStartPresent;
                         }  else if ( dataStartPresent == 1 ){
                             httpdlog("ERROR", std::to_string(id) + ": Header size exceeds "+std::to_string(MAXBUFFER) );
-                            dataStart += dataStartPresent;
                             //we need to safely exit
                             break;
                         } else {
-                            dataStart += dataStartPresent;
+                            dataStart = dataStartPresent;
                             break;
                         }
                     }
