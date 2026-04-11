@@ -16,7 +16,7 @@ openssl 3 (Install using macports)
 1. Openssl 3       
 2. Python 3 (Install it using the installer from python website)   
 3. Visual Studio Express (For compilation, you should find the solution file under HttpdWin/HttpdWin.sln )
-4. Mac OS tahoe Xcode 26    
+4. Mac OS tahoe Xcode 26 (You will need to create a project yourself) or CMake    
      
      
 ### Execution Requirements:    
