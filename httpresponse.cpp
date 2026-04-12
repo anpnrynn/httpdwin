@@ -15,11 +15,7 @@ using namespace std::filesystem;
 #include <httpdlog.h>
 
 
-#ifndef MAC_TAHOE
-string HttpResponse::pagesFolder = "C:\\HttpdWin\\Pages";
-#else
-string HttpResponse::pagesFolder = "~/HttpdWin/Pages";
-#endif
+
 extern thread_local int globalThreadId;
 
 map<string,string> HttpResponse::mimeTypes =
@@ -118,6 +114,9 @@ HttpResponse::HttpResponse(string statusCode, string statusMessage, string conte
     m_ActualFileSize = 0;
     m_IsChunked = false;
     m_HttpData = m_Version + " " + statusCode + " " + statusMessage + " " + filename;
+    const auto now = std::chrono::system_clock::now();
+    const std::time_t nowsecs = std::chrono::system_clock::to_time_t(now);
+    m_StartResponse = nowsecs;
     httpdlog("DEBUG", std::to_string(globalThreadId)+ ": Creating response object: " + to_string((unsigned long long int) this));
 }
 
@@ -128,28 +127,11 @@ HttpResponse::~HttpResponse() {
         m_CookieList->clear();
         m_CookieList = 0;
     }
+    m_StartResponse = 0;
     httpdlog("DEBUG", std::to_string(globalThreadId) + ": Deleting response object: " + to_string((unsigned long long int) this));
 }
 
-string HttpResponse::filenameCorrection(string filename ){
-    size_t pos = 0;
-    if( filename == "" || filename == "/" ){
-#ifndef MAC_TAHOE
-        filename = "\\index.html";
-#else
-        filename = "/index.html";
-#endif
-    } else {
-#ifndef MAC_TAHOE
-        while ((pos = filename.find('/', pos)) != std::string::npos) {
-            filename.replace(pos, 1, "\\");
-            pos++;
-        }
-#endif
-    }
-    filename = HttpResponse::pagesFolder+filename;
-    return filename;
-}
+
 
 string HttpResponse::filenameExtension(string filename){
     size_t pos = filename.find_last_of('.');

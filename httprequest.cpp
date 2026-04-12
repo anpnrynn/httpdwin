@@ -21,6 +21,13 @@ extern CookieManager cookieManager;
 extern std::string sessionIdName;
 extern uint64_t sessionMaxAge;
 
+
+#ifndef MAC_TAHOE
+string HttpRequest::pagesFolder = "C:\\HttpdWin\\Pages";
+#else
+string HttpRequest::pagesFolder = "~/HttpdWin/Pages";
+#endif
+
 NameMimeValues & NameMimeValues::operator =( const NameMimeValues& cp){
     m_Name  = cp.m_Name;
     m_Mime  = cp.m_Mime;
@@ -35,6 +42,9 @@ HttpRequest::HttpRequest(){
     m_FieldCount = 0;
     m_HttpHeaderComplete = false;
     m_CookieList = 0;
+    const auto now = std::chrono::system_clock::now();
+    const std::time_t nowsecs = std::chrono::system_clock::to_time_t(now);
+    m_StartRequest  = nowsecs;
     httpdlog("DEBUG", std::to_string(globalThreadId) + ": Creating request object: " + to_string((unsigned long long int) this));
 }
 
@@ -44,6 +54,7 @@ HttpRequest::~HttpRequest(){
     m_Len = 0;
     m_cLen = 0;
     m_CookieList = 0;
+    m_StartRequest = 0;
 }
 
 
@@ -65,13 +76,44 @@ void HttpRequest::decodeUrl(){
     m_DecodedUrl = decoded.str();
 }
 
+string HttpRequest::filenameCorrection(string filename ){
+    size_t pos = 0;
+    if ( filename.find("..", 0) != std::string::npos ){
+#ifndef MAC_TAHOE
+        filename = HttpRequest::pagesFolder+"\\403.html";
+#else
+        filename = HttpRequest::pagesFolder+"/403.html";
+#endif
+        return filename;
+    }
+    if( filename == "" || filename == "/" ){
+#ifndef MAC_TAHOE
+        filename = "\\index.html";
+#else
+        filename = "/index.html";
+#endif
+    } else {
+#ifndef MAC_TAHOE
+        while ((pos = filename.find('/', pos)) != std::string::npos) {
+            filename.replace(pos, 1, "\\");
+            pos++;
+        }
+#endif
+    }
+    filename = HttpRequest::pagesFolder + filename;
+    return filename;
+}
+
 void HttpRequest::parseQuerystring(){
     size_t i = 0;
-    while ( m_DecodedUrl[i] != '?' && i < m_DecodedUrl.length() ){
-        m_RequestFile += m_DecodedUrl[i++];
+    while ( i < m_DecodedUrl.length() && m_DecodedUrl[i] != '?' ){
+        m_RequestFile += m_DecodedUrl[i];
+        i++;
     }
     i++;
     httpdlog("WARN", std::to_string(globalThreadId) + ": Request File = " + m_RequestFile );
+    m_ActualFile = filenameCorrection(m_RequestFile);
+    httpdlog("WARN", std::to_string(globalThreadId) + ": Actual Request File = " + m_ActualFile );
     NameMimeValues *nmv = new NameMimeValues;
     nmv->m_Name = "";
     nmv->m_Mime = "";
@@ -271,7 +313,7 @@ void HttpRequest::readHttpHeader ( HttpRequest *req, char *buffer, int *len, int
             //cerr<<"---->"<<line<<"  <>  "<<s<<endl;
             vs.push_back(s);
             line = &buffer[i+2];
-            if( buffer[i+1] =='\n' && buffer[i+2] =='\r' && buffer[i+3] == '\n' ){
+            if( i+3 < totalLen && buffer[i+1] =='\n' && buffer[i+2] =='\r' && buffer[i+3] == '\n' ){
                 *len = i+4;
                 req->m_HttpHeaderComplete = true;
                 break;
@@ -281,11 +323,13 @@ void HttpRequest::readHttpHeader ( HttpRequest *req, char *buffer, int *len, int
         i++;
     }
 
-    HttpRequest::readHttpReqLine(req, vs[0]);
-    i = 0;
-    while( i < vs.size()-1 ){
-        i++;
-        HttpRequest::readHeaderLine(req, vs[i]);
+    if( vs.size() > 0 ) {
+        HttpRequest::readHttpReqLine(req, vs[0]);
+        i = 0;
+        while( i < vs.size()-1 ){
+            i++;
+            HttpRequest::readHeaderLine(req, vs[i]);
+        }
     }
 }
 

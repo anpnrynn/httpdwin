@@ -11,6 +11,7 @@ using namespace std;
 #include "cookie.h"
 
 const int MAXBUFFER = 1*1024*1024;
+const std::time_t MAX_STALL = 20;
 
 class NameMimeValues {
     public:
@@ -36,6 +37,7 @@ class HttpRequest {
         string  m_DecodedUrl;
         string  m_EncodedUrl;
         string  m_RequestFile;
+		string  m_ActualFile;
         Query   query;
 
         string  m_Filename;
@@ -53,6 +55,9 @@ class HttpRequest {
         unsigned char    m_Buffer[MAXBUFFER];
         size_t           m_Len;
         size_t           m_cLen;
+		std::time_t      m_StartRequest;
+
+		static string pagesFolder;
 
         HttpRequest();
         ~HttpRequest();
@@ -221,7 +226,9 @@ class HttpRequest {
 		static void readHttpData   ( char *buffer, int *len, int totalLen, string *filename );
 
         void decodeUrl();
+		string filenameCorrection(string filename );
         void parseQuerystring();
+		
         void parsePostDataQueryString();
         void processPostData( string *filename );
         void processMultipartData ( string *filename );

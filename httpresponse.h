@@ -22,13 +22,15 @@ class HttpResponse:public HttpRequest{
         size_t m_ResponseHeaderLen;
 
         fstream m_Fhandle;
-        string  m_ActualFile;
+        //string  m_ActualFile;
         string  m_Extension;
         size_t  m_ActualFileSize;
 
         bool    m_IsChunked;
 
         string  m_CollatedHeaders;
+
+        std::time_t m_StartResponse;
 
 
         HttpResponse(string statusCode, string statusMessage, string contentLength, string contentType, string filename = "" );
@@ -42,12 +44,9 @@ class HttpResponse:public HttpRequest{
         static map<string,string> mimeTypes;
         static map<string,string> textMimeTypes;
 
-
-        string filenameCorrection( string filename );
-
         static string filenameExtension ( string filename );
 
-        static string pagesFolder;
+        
         static string getMime( string filename );
         static bool   isTextFile(string extension );
 

@@ -280,28 +280,39 @@ void ThreadPool::sendHttpHeader() {
     //httpdlog("    ", " ");
 
     int partial = 0, n = 0;
-
+    int count = 0;
+    auto now = std::chrono::system_clock::now();
+    std::time_t nowsecs = std::chrono::system_clock::to_time_t(now);
     do {
+
         if (info.cmd->isSsl) {
             n = SSL_write(info.cmd->ssl, (char*)&(info.resp->m_Buffer[partial]), info.resp->m_ResponseHeaderLen - partial);
             if (n > 0) {
                 partial += n;
+                now = std::chrono::system_clock::now();
+                nowsecs = std::chrono::system_clock::to_time_t(now);
             }
-            else if (n == -1) {
-                //break;
+            else if (n < 0 && SSL_get_error(info.cmd->ssl, n) != SSL_ERROR_WANT_WRITE) {
+                break;
             }
             else {
+                if( nowsecs - info.resp->m_StartResponse > MAX_STALL )
+                    break;
             }
         }
         else {
             n = send(info.cmd->fd, (char*)&(info.resp->m_Buffer[partial]), info.resp->m_ResponseHeaderLen - partial, 0);
             if (n > 0) {
                 partial += n;
+                now = std::chrono::system_clock::now();
+                nowsecs = std::chrono::system_clock::to_time_t(now);
             }
-            else if (n == -1) {
-                //break;
+            else if (n < 0 && ( errno != EAGAIN && errno != ENOMEM) ) {
+                break;
             }
             else {
+                if( nowsecs - info.resp->m_StartResponse > MAX_STALL )
+                    break;
             }
         }
     } while (partial < info.resp->m_ResponseHeaderLen);
@@ -322,39 +333,38 @@ void ThreadPool::sendHttpData(char *data, size_t len) {
                 ce->setData((char*)&(data[i]), maxceLen, false);
             int partial = 0, n = 0;
             count = 0;
+            auto now = std::chrono::system_clock::now();
+            std::time_t nowsecs = std::chrono::system_clock::to_time_t(now);
             do {
+                
                 if (info.cmd->isSsl) {
                     n = SSL_write(info.cmd->ssl, (char*)&(ce->data[partial]), ce->size - partial);
                     if (n > 0) {
                         partial += n;
-                        //count = 0;
+                        now = std::chrono::system_clock::now();
+                        nowsecs = std::chrono::system_clock::to_time_t(now);
                     }
-                    else if (n == -1) {
-                        //break;
-                        std::this_thread::sleep_for(std::chrono::microseconds(10));
-                        count++;
-                        if (count > 50000)
-                            break;
+                    else if (n < 0 && SSL_get_error(info.cmd->ssl, n) != SSL_ERROR_WANT_WRITE) {
+                        break;
                     }
                     else {
-                        count = 0;
+                        if( nowsecs - info.resp->m_StartResponse > MAX_STALL )
+                            break;
                     }
                 }
                 else {
                     n = send(info.cmd->fd, (char*)&(ce->data[partial]), ce->size - partial, 0);
                     if (n > 0) {
                         partial += n;
-                        //count = 0;
+                        now = std::chrono::system_clock::now();
+                        nowsecs = std::chrono::system_clock::to_time_t(now);
                     }
-                    else if (n == -1) {
-                        //break;
-                        std::this_thread::sleep_for(std::chrono::microseconds(10));
-                        count++;
-                        if (count > 50000)
-                            break;
+                    else if (n < 0 && ( errno != EAGAIN && errno != ENOMEM) ) {
+                        break;
                     }
                     else {
-                        count = 0;
+                        if( nowsecs - info.resp->m_StartResponse > MAX_STALL )
+                            break;
                     }
                 }
             } while (partial < ce->size);
@@ -370,22 +380,23 @@ void ThreadPool::sendHttpData(char *data, size_t len) {
         ce->setData(data, len, false);
         int partial = 0, n = 0;
         count = 0;
+        auto now = std::chrono::system_clock::now();
+        std::time_t nowsecs = std::chrono::system_clock::to_time_t(now);
         do {
+            
             if (info.cmd->isSsl) {
                 n = SSL_write(info.cmd->ssl, (char*)&(ce->data[partial]), ce->size - partial);
                 if (n > 0) {
                     partial += n;
-                    count = 0;
+                    now = std::chrono::system_clock::now();
+                    nowsecs = std::chrono::system_clock::to_time_t(now);
                 }
-                else if (n == -1) {
-                    //break;
-                    std::this_thread::sleep_for(std::chrono::microseconds(10));
-                    count++;
-                    if (count > 50000)
-                        break;
+                else if (n < 0 && SSL_get_error(info.cmd->ssl, n) != SSL_ERROR_WANT_WRITE) {
+                    break;
                 }
                 else {
-                    count = 0;
+                    if( nowsecs - info.resp->m_StartResponse > MAX_STALL )
+                        break;
                 }
             }
             else {
@@ -393,17 +404,15 @@ void ThreadPool::sendHttpData(char *data, size_t len) {
                 n = send(info.cmd->fd, (char*)&(ce->data[partial]), ce->size - partial, 0);
                 if (n > 0) {
                     partial += n;
-                    count = 0;
+                    now = std::chrono::system_clock::now();
+                    nowsecs = std::chrono::system_clock::to_time_t(now);
                 }
-                else if (n == -1) {
-                    //break;
-                    std::this_thread::sleep_for(std::chrono::microseconds(10));
-                    count++;
-                    if (count > 50000)
-                        break;
+                else if (n < 0  && ( errno != EAGAIN && errno != ENOMEM) ) {
+                    break;
                 }
                 else {
-                    count = 0;
+                    if( nowsecs - info.resp->m_StartResponse > MAX_STALL )
+                        break;
                 }
             }
         } while (partial < ce->size);
@@ -417,22 +426,24 @@ void ThreadPool::sendHttpDataFinal(char* data, size_t len) {
     ce->setData(data, len, true);
     int partial = 0, n = 0;
     int count = 0;
+    auto now = std::chrono::system_clock::now();
+    std::time_t nowsecs = std::chrono::system_clock::to_time_t(now);
+
     do {
+        
         if (info.cmd->isSsl) {
             n = SSL_write(info.cmd->ssl, (char*)&(ce->data[partial]), ce->size - partial);
             if (n > 0) {
                 partial += n;
-                count = 0;
+                now = std::chrono::system_clock::now();
+                nowsecs = std::chrono::system_clock::to_time_t(now);
             }
-            else if (n == -1) {
-                //break;
-                std::this_thread::sleep_for(std::chrono::microseconds(10));
-                count++;
-                if (count > 50000)
-                    break;
+            else if (n < 0 && SSL_get_error(info.cmd->ssl, n) != SSL_ERROR_WANT_WRITE) {
+                break;
             }
             else {
-                count = 0;
+                if( nowsecs - info.resp->m_StartResponse > MAX_STALL )
+                    break;
             }
         }
         else {
@@ -440,17 +451,15 @@ void ThreadPool::sendHttpDataFinal(char* data, size_t len) {
             n = send(info.cmd->fd, (char*)&(ce->data[partial]), ce->size - partial, 0);
             if (n > 0) {
                 partial += n;
-                //count = 0;
+                now = std::chrono::system_clock::now();
+                nowsecs = std::chrono::system_clock::to_time_t(now);
             }
-            else if (n == -1) {
-                //break;
-                std::this_thread::sleep_for(std::chrono::microseconds(10));
-                count++;
-                if (count > 50000)
-                    break;
+            else if (n < 0 && ( errno != EAGAIN && errno != ENOMEM) ) {
+                break;
             }
             else {
-                count = 0;
+                if( nowsecs - info.resp->m_StartResponse > MAX_STALL )
+                    break;
             }
         }
     } while (partial < ce->size);
@@ -532,28 +541,39 @@ void ThreadPool::simpleChunkedResponse(int id , ThreadCommand *cmd, HttpResponse
     httpdlogHdr("    ", (char*)resp->m_Buffer);
 
     int partial = 0, n = 0;
+    auto now = std::chrono::system_clock::now();
+    std::time_t nowsecs = std::chrono::system_clock::to_time_t(now);
 
     do {
+        
         if (cmd->isSsl) {
             n = SSL_write(cmd->ssl, (char*)&(resp->m_Buffer[partial]), resp->m_ResponseHeaderLen - partial);
             if (n > 0) {
                 partial += n;
+                now = std::chrono::system_clock::now();
+                nowsecs = std::chrono::system_clock::to_time_t(now);
             }
-            else if (n == -1) {
-                //break;
+            else if (n < 0 && SSL_get_error(cmd->ssl, n) != SSL_ERROR_WANT_WRITE) {
+                break;
             }
             else {
+                if( nowsecs - info.resp->m_StartResponse > MAX_STALL )
+                    break;
             }
         }
         else {
             n = send(cmd->fd, (char*)&(resp->m_Buffer[partial]), resp->m_ResponseHeaderLen - partial, 0);
             if (n > 0) {
                 partial += n;
+                now = std::chrono::system_clock::now();
+                nowsecs = std::chrono::system_clock::to_time_t(now);
             }
-            else if (n == -1) {
-                //break;
+            else if (n < 0 && ( errno != EAGAIN && errno != ENOMEM) ) {
+                break;
             }
             else {
+                if( nowsecs - info.resp->m_StartResponse > MAX_STALL )
+                    break;
             }
         }
     } while (partial < resp->m_ResponseHeaderLen);
@@ -577,17 +597,23 @@ void ThreadPool::simpleChunkedResponse(int id , ThreadCommand *cmd, HttpResponse
             resp->m_Buffer[0] = 0;
             ce->setData((char*)(resp->m_Buffer), 0, true);
         }
+        now = std::chrono::system_clock::now();
+        nowsecs = std::chrono::system_clock::to_time_t(now);
         do {
-
+           
             if (cmd->isSsl) {
                 n = SSL_write(cmd->ssl, (char*)&(ce->data[partial]), ce->size - partial);
                 if (n > 0) {
                     partial += n;
+                    now = std::chrono::system_clock::now();
+                    nowsecs = std::chrono::system_clock::to_time_t(now);
                 }
-                else if (n == -1) {
+                else if (n < 0 && SSL_get_error(cmd->ssl, n) != SSL_ERROR_WANT_WRITE) {
                     break;
                 }
                 else {
+                    if( nowsecs - info.resp->m_StartResponse > MAX_STALL )
+                        break;
                 }
             }
             else {
@@ -595,11 +621,15 @@ void ThreadPool::simpleChunkedResponse(int id , ThreadCommand *cmd, HttpResponse
                 n = send(cmd->fd, (char*)&(ce->data[partial]), ce->size - partial, 0);
                 if (n > 0) {
                     partial += n;
+                    now = std::chrono::system_clock::now();
+                    nowsecs = std::chrono::system_clock::to_time_t(now);
                 }
-                else if (n == -1) {
-                    //break;
+                else if (n < 0 && ( errno != EAGAIN && errno != ENOMEM) ) {
+                    break;
                 }
                 else {
+                    if( nowsecs - info.resp->m_StartResponse > MAX_STALL )
+                        break;
                 }
             }
         } while (partial < ce->size);
@@ -870,19 +900,26 @@ void ThreadPool::threadpoolFunction(int id ){
                         //httpdlog("    ", " ");
                         //httpdlog("    ", "Response Header: ");
                         httpdlogHdr("    ", (char*)resp->m_Buffer);
+                        auto now = std::chrono::system_clock::now();
+                        std::time_t nowsecs = std::chrono::system_clock::to_time_t(now);
                         while (totalBytes < nHttpDataBytes) {
 
                             partial = 0;
                             n = 0;
                             while (partial < bufferBytes) {
-                                //n = send(cmd->fd, (char*)&(resp->m_Buffer[partial]), bufferBytes - partial, 0);
+                                
                                 n = SSL_write(cmd->ssl, (char*)&(resp->m_Buffer[partial]), bufferBytes - partial);
                                 if (n > 0) {
                                     partial += n;
+                                    now = std::chrono::system_clock::now();
+                                    nowsecs = std::chrono::system_clock::to_time_t(now);
                                 }
-                                else if (n < 0) {
+                                else if (n < 0 && SSL_get_error(cmd->ssl, n) != SSL_ERROR_WANT_WRITE) {
+                                    break;
                                 }
                                 else {
+                                   if( nowsecs - resp->m_StartResponse > MAX_STALL )
+                                        break;
                                 }
                             }
                             //httpdlog("DEBUG", "Sent Bytes :" + to_string(partial));
@@ -1000,9 +1037,9 @@ void ThreadPool::threadpoolFunction(int id ){
                             try {
                                 //PyRun_SimpleString("print('Hello from thread!')");
 #ifndef MAC_TAHOE
-                                string scriptFile = "C:\\HttpdWin\\Pages\\"+req->m_RequestFile.substr(1, req->m_RequestFile.length());
+                                string scriptFile = req->m_ActualFile;
 #else
-                                string scriptFile = "~/HttpdWin/Pages/"+req->m_RequestFile.substr(1, req->m_RequestFile.length());
+                                string scriptFile = req->m_ActualFile;
                                 scriptFile = HWD( scriptFile.c_str());
 #endif
                                 httpdlog("WARN", std::to_string(id) + ": Executing script from location : " + scriptFile );
@@ -1061,15 +1098,23 @@ void ThreadPool::threadpoolFunction(int id ){
                             //httpdlog("    ", (char*)resp->m_Buffer);
                             httpdlogHdr("    ", (char*)resp->m_Buffer);
                             int partial = 0, n = 0;
+
+                            auto now = std::chrono::system_clock::now();
+                            std::time_t nowsecs = std::chrono::system_clock::to_time_t(now);
                             do {
+                                
                                 n = SSL_write(cmd->ssl, (char*)&(resp->m_Buffer[partial]), nHttpDataBytes - partial);
                                 if (n > 0) {
                                     partial += n;
+                                    now = std::chrono::system_clock::now();
+                                    nowsecs = std::chrono::system_clock::to_time_t(now);
                                 }
-                                else if (n == -1) {
+                                else if (n < 0 && SSL_get_error(cmd->ssl, n) != SSL_ERROR_WANT_WRITE ) {
                                     break;
                                 }
                                 else {
+                                    if( nowsecs - resp->m_StartResponse > MAX_STALL )
+                                        break;
                                 }
                             } while (partial < nHttpDataBytes);
                         }
@@ -1209,6 +1254,8 @@ void ThreadPool::threadpoolFunction(int id ){
                         //httpdlog("    ", " ");
                         //httpdlog("    ", "Response Header: ");
                         httpdlogHdr("    ", (char*)resp->m_Buffer);
+                        auto now = std::chrono::system_clock::now();
+                        std::time_t nowsecs = std::chrono::system_clock::to_time_t(now);
                         while (totalBytes < nHttpDataBytes) {
 
                             partial = 0;
@@ -1218,10 +1265,16 @@ void ThreadPool::threadpoolFunction(int id ){
                                 n = send(cmd->fd, (char*)&(resp->m_Buffer[partial]), bufferBytes - partial, 0);
                                 if (n > 0) {
                                     partial += n;
+                                    now = std::chrono::system_clock::now();
+                                    nowsecs = std::chrono::system_clock::to_time_t(now);
                                 }
-                                else if (n < 0) {
+                                else if (n < 0 && ( errno != EAGAIN && errno != ENOMEM) ) {
+                                    break;
                                 }
                                 else {
+                                    if( nowsecs - resp->m_StartResponse > MAX_STALL ){
+                                        break;
+                                    }
                                 }
                             }
                             //httpdlog("DEBUG", "Sent Bytes :" + to_string(partial));
@@ -1340,9 +1393,9 @@ void ThreadPool::threadpoolFunction(int id ){
                             try {
                                 //PyRun_SimpleString("print('Hello from thread!')");
 #ifndef MAC_TAHOE
-                                string scriptFile = "C:\\HttpdWin\\Pages\\" + req->m_RequestFile.substr(1, req->m_RequestFile.length());
+                                string scriptFile = req->m_ActualFile;
 #else
-                                string scriptFile = "~/HttpdWin/Pages/" + req->m_RequestFile.substr(1, req->m_RequestFile.length());
+                                string scriptFile = req->m_ActualFile;
                                 scriptFile = HWD(scriptFile.c_str());
 #endif
                                 httpdlog("WARN", std::to_string(id) + ": Executing script from location : " + scriptFile);
@@ -1398,17 +1451,26 @@ void ThreadPool::threadpoolFunction(int id ){
                             //resp->addResponseData(resp->m_HttpData);
                             //httpdlog("INFO", std::to_string(id) + ": Adding data ");
                             size_t nHttpDataBytes = strlen((char*)resp->m_Buffer);
-
+                            
                             int partial = 0, n = 0;
+                            auto now = std::chrono::system_clock::now();
+                            std:time_t nowsecs = std::chrono::system_clock::to_time_t(now);
+
                             do {
+                                
                                 n = send(cmd->fd, (char*)&(resp->m_Buffer[partial]), nHttpDataBytes - partial, 0);
                                 if (n > 0) {
                                     partial += n;
+                                    now = std::chrono::system_clock::now();
+                                    nowsecs = std::chrono::system_clock::to_time_t(now);
                                 }
-                                else if (n == -1) {
-                                    //break;
+                                else if (n <  0 && (errno != EAGAIN && errno != ENOMEM)) {
+                                    break;
                                 }
                                 else {
+                                    if( nowsecs - resp->m_StartResponse > MAX_STALL ){
+                                        break;
+                                    } 
                                 }
                             } while (partial < nHttpDataBytes);
 

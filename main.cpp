@@ -60,10 +60,10 @@ int parseConfig(){
         string line;
          while( !f.eof() ){
             std::getline( f, line);
-            if (line[0] == '#')
-                continue;
             if (line.length() <= 2)
-                break;
+                continue;
+            if (line[0] == '#' || line[0] == '\r' || line[0] =='\n' || line[0] == '\0')
+                continue;
             size_t m = line.find('=', 1 );
             string name  = line.substr(0,m );
             string value = line.substr(m+1, line.length()-m-1);
@@ -319,6 +319,25 @@ int main()
         
     }
 
+    string ipv4Address = "";
+    string ipv6Address = "";
+
+    try{
+        ipv4Address = httpdwinConfig["bindipv4"];
+        ipv6Address = httpdwinConfig["bindipv6"];
+    }catch (...){
+        ipv4Address = "127.0.0.1";
+        ipv6Address = "::1";
+    }
+
+    if( ipv4Address.empty() || ipv4Address ==  "" )
+        ipv4Address = "127.0.0.1";
+
+    if( ipv4Address.empty() || ipv6Address == "")
+        ipv6Address = "::1";
+        
+    httpdlog("     ", "Binding to IPv4 = " + ipv4Address +", and IPv6 = " +ipv6Address);
+
     httpdloglevel = atoi(httpdwinConfig["debuglevel"].c_str());
     if (httpdloglevel < 0)
         httpdloglevel = 0;
@@ -350,28 +369,32 @@ int main()
     httpdlog (  "INFO","Creating socket(s)" );
     srv = socket(PF_INET,  SOCK_STREAM, IPPROTO_TCP);
     srvAddr.sin_family  = AF_INET;
-    srvAddr.sin_addr.s_addr     = 0x00000000;
+    inet_pton(AF_INET, ipv4Address.c_str(), &(srvAddr.sin_addr));
+    //srvAddr.sin_addr.s_addr     = 0x00000000;
     srvAddr.sin_port   = htons ( serverPort );
     httpdlog (  "INFO", "IPv4 Socket created successfully" );
 
     srv6 = socket(PF_INET6,  SOCK_STREAM, IPPROTO_TCP);
     memset(&srvAddr6, 0, sizeof(struct sockaddr_in6));
     srvAddr6.sin6_family = AF_INET6;
-    srvAddr6.sin6_addr = in6addr_loopback;
+    inet_pton(AF_INET6, ipv6Address.c_str(), &(srvAddr6.sin6_addr));
+    //srvAddr6.sin6_addr = in6addr_loopback;
     srvAddr6.sin6_port = htons ( serverPort6 );
     httpdlog (  "INFO","IPv6 Socket created successfully" );
 
     httpdlog (  "INFO","Creating ssl socket(s)" );
     sslsrv = socket(PF_INET,  SOCK_STREAM, IPPROTO_TCP);
     sslsrvAddr.sin_family  = AF_INET;
-    sslsrvAddr.sin_addr.s_addr     = 0x00000000;
+    inet_pton(AF_INET, ipv4Address.c_str(), &(sslsrvAddr.sin_addr));
+    //sslsrvAddr.sin_addr.s_addr     = 0x00000000;
     sslsrvAddr.sin_port   = htons ( sslserverPort );
     httpdlog (  "INFO","SSL IPv4 Socket created successfully" );
 
     sslsrv6 = socket(PF_INET6,  SOCK_STREAM, IPPROTO_TCP);
     memset(&sslsrvAddr6, 0, sizeof(struct sockaddr_in6));
     sslsrvAddr6.sin6_family = AF_INET6;
-    sslsrvAddr6.sin6_addr = in6addr_loopback;
+    inet_pton(AF_INET6, ipv6Address.c_str(), &(sslsrvAddr6.sin6_addr));
+    //sslsrvAddr6.sin6_addr = in6addr_loopback;
     sslsrvAddr6.sin6_port = htons ( sslserverPort6 );
     httpdlog (  "INFO", "SSL IPv6 Socket created successfully" );
 
